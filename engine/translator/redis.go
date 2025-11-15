@@ -52,25 +52,34 @@ func TranslateRedis(query *models.Query, tenantID string) (*pb.KeyValueQuery, er
 			args = append(args, "LIMIT", fmt.Sprintf("%d", query.Limit))
 		}
 		
-		return &pb.KeyValueQuery{
+		result := &pb.KeyValueQuery{
 			Command: command,
 			Key:     buildRedisKeyPattern(tenantID, query.Entity),
 			Args:    args,
-		}, nil
+		}
+		result.CommandString = buildRedisString(result)
+		return result, nil
 	}
 
 	// Special handling for DROP TABLE  
-	if query.Operation == "DROP TABLE" {  
-		return &pb.KeyValueQuery{
+	if query.Operation == "DROP TABLE" {
+		result := &pb.KeyValueQuery{
 			Command: "DROP_TABLE",
 			Key:     buildRedisKeyPattern(tenantID, query.Entity),
 			Args:    []string{},
-		}, nil
+		}
+		result.CommandString = buildRedisString(result)
+		return result, nil
 	}
 
 	// Special handling for BULK INSERT
 	if query.Operation == "BULK INSERT" {
-		return buildBulkInsert(query, tenantID)
+		result, err := buildBulkInsert(query, tenantID)
+		if err != nil {
+			return nil, err
+		}
+		result.CommandString = buildRedisString(result)
+		return result, nil
 	}
 
 	command := mapping.OperationMap["Redis"][query.Operation]
@@ -94,11 +103,13 @@ func TranslateRedis(query *models.Query, tenantID string) (*pb.KeyValueQuery, er
 		args = buildRedisArgs(query, command, tenantID)
 	}
 	
-	return &pb.KeyValueQuery{
+	result := &pb.KeyValueQuery{
 		Command: command,
 		Key:     key,
 		Args:    args,
-	}, nil
+	}
+	result.CommandString = buildRedisString(result)
+	return result, nil
 }
 
 func buildBulkInsert(query *models.Query, tenantID string) (*pb.KeyValueQuery, error) {
@@ -528,4 +539,50 @@ func getFieldValue(fields []models.Field, name string) string {
 func buildRedisKeyPattern(tenantID, entity string) string {
     entityLower := strings.ToLower(entity)
     return fmt.Sprintf("tenant:%s:%s:*", tenantID, entityLower)
+}
+
+// buildRedisString generates Redis command string for OmniQL users
+func buildRedisString(query *pb.KeyValueQuery) string {
+	if query == nil {
+		return ""
+	}
+	
+	command := strings.ToUpper(query.Command)
+	
+	// Handle special cases
+	switch command {
+	case "BULK INSERT":
+		// For bulk insert, show multiple HMSET commands
+		var commands []string
+		for _, pair := range query.BulkPairs {
+			commands = append(commands, fmt.Sprintf("HMSET %s <fields>", pair.Key))
+		}
+		return strings.Join(commands, "\n")
+		
+	case "DROP_TABLE":
+		// For drop table, show DEL with pattern
+		return fmt.Sprintf("DEL %s", query.Key)
+		
+	case "COUNT", "SUM", "AVG", "MIN", "MAX":
+		// Aggregation operations
+		if len(query.Args) > 0 {
+			return fmt.Sprintf("%s %s %s", command, query.Key, strings.Join(query.Args, " "))
+		}
+		return fmt.Sprintf("%s %s", command, query.Key)
+	}
+	
+	// Build standard Redis command
+	parts := []string{command}
+	
+	// Add key if present
+	if query.Key != "" {
+		parts = append(parts, query.Key)
+	}
+	
+	// Add args if present
+	if len(query.Args) > 0 {
+		parts = append(parts, query.Args...)
+	}
+	
+	return strings.Join(parts, " ")
 }

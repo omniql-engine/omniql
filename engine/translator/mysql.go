@@ -1,9 +1,10 @@
 package translator
 
 import (
-	"fmt"          // ✅ ADD THIS LINE
+	"fmt"
 	"strings"
 	"github.com/omniql-engine/omniql/mapping"
+	mysqlbuilders "github.com/omniql-engine/omniql/engine/builders/mysql"
 	"github.com/omniql-engine/omniql/engine/models"
 	pb "github.com/omniql-engine/omniql/utilities/proto"
 	"github.com/jinzhu/inflection"
@@ -86,7 +87,7 @@ func TranslateMySQL(query *models.Query, tenantID string) (*pb.RelationalQuery, 
 		}
 	}
 	
-	return &pb.RelationalQuery{
+	result := &pb.RelationalQuery{
 		Operation:  operation,
 		Table:      table,
 		Conditions: conditions,
@@ -134,7 +135,13 @@ func TranslateMySQL(query *models.Query, tenantID string) (*pb.RelationalQuery, 
 		ViewQuery:    viewQuery,
 		DatabaseName: databaseName,
 		NewName:      newName,
-	}, nil
+
+	}
+
+	// ✨ Populate SQL field for OmniQL users
+	result.Sql = buildMySQLString(result)
+	
+	return result, nil
 }
 
 // ============================================================================
@@ -499,4 +506,138 @@ func mapMySQLSelectColumns(selectCols []models.SelectColumn) []*pb.SelectColumn 
 	}
 	
 	return pbSelectCols
+}
+
+// buildMySQLString populates the SQL string based on operation type
+func buildMySQLString(query *pb.RelationalQuery) string {
+	operation := strings.ToLower(query.Operation)
+	
+	// CRUD Operations
+	switch operation {
+	case "select":
+		sql, _ := mysqlbuilders.BuildSelectSQL(query)
+		return sql
+	case "insert":
+		sql, _ := mysqlbuilders.BuildInsertSQL(query)
+		return sql
+	case "update":
+		sql, _ := mysqlbuilders.BuildUpdateSQL(query)
+		return sql
+	case "delete":
+		sql, _ := mysqlbuilders.BuildDeleteSQL(query)
+		return sql
+	case "upsert":
+		sql, _, _ := mysqlbuilders.BuildUpsertSQL(query)
+		return sql
+	case "replace":
+		// MySQL REPLACE uses INSERT syntax
+		sql, _ := mysqlbuilders.BuildInsertSQL(query)
+		return strings.Replace(sql, "INSERT", "REPLACE", 1)
+	case "bulk_insert":
+		sql, _, _ := mysqlbuilders.BuildBulkInsertSQL(query)
+		return sql
+	
+	// DDL Operations
+	case "create_table":
+		sql, _ := mysqlbuilders.BuildCreateTableSQL(query, mapping.TypeMap)
+		return sql
+	case "alter_table":
+		sql, _ := mysqlbuilders.BuildAlterTableSQL(query, mapping.TypeMap)
+		return sql
+	case "drop_table":
+		sql, _ := mysqlbuilders.BuildDropTableSQL(query)
+		return sql
+	case "truncate_table":
+		sql, _ := mysqlbuilders.BuildTruncateTableSQL(query)
+		return sql
+	case "alter_table_rename":
+		sql, _ := mysqlbuilders.BuildRenameTableSQL(query)
+		return sql
+	case "create_index":
+		sql, _ := mysqlbuilders.BuildCreateIndexSQL(query)
+		return sql
+	case "drop_index":
+		sql, _ := mysqlbuilders.BuildDropIndexSQL(query)
+		return sql
+	case "create_database":
+		sql, _ := mysqlbuilders.BuildCreateDatabaseSQL(query)
+		return sql
+	case "drop_database":
+		sql, _ := mysqlbuilders.BuildDropDatabaseSQL(query)
+		return sql
+	case "create_view":
+		sql, _ := mysqlbuilders.BuildCreateViewSQL(query)
+		return sql
+	case "drop_view":
+		sql, _ := mysqlbuilders.BuildDropViewSQL(query)
+		return sql
+	case "alter_view":
+		sql, _ := mysqlbuilders.BuildAlterViewSQL(query)
+		return sql
+	
+	// DQL Operations
+	case "inner_join", "left_join", "right_join", "full_join", "cross_join":
+		sql, _ := mysqlbuilders.BuildJoinSQL(query)
+		return sql
+	case "count", "sum", "avg", "min", "max":
+		sql, _ := mysqlbuilders.BuildAggregateSQL(query)
+		return sql
+	case "row_number", "rank", "dense_rank", "lag", "lead", "ntile":
+		sql, _ := mysqlbuilders.BuildWindowSQL(query)
+		return sql
+	case "union", "union_all", "intersect", "except":
+		sql, _ := mysqlbuilders.BuildSetOperationSQL(query)
+		return sql
+	
+	// DCL Operations
+	case "grant":
+		sql, _ := mysqlbuilders.BuildGrantSQL(query, false)
+		return sql
+	case "revoke":
+		sql, _ := mysqlbuilders.BuildRevokeSQL(query, false)
+		return sql
+	case "create_user":
+		sql, _ := mysqlbuilders.BuildCreateUserSQL(query)
+		return sql
+	case "drop_user":
+		sql, _ := mysqlbuilders.BuildDropUserSQL(query)
+		return sql
+	case "alter_user":
+		sql, _ := mysqlbuilders.BuildAlterUserSQL(query)
+		return sql
+	case "create_role":
+		sql, _ := mysqlbuilders.BuildCreateRoleSQL(query)
+		return sql
+	case "drop_role":
+		sql, _ := mysqlbuilders.BuildDropRoleSQL(query)
+		return sql
+	case "assign_role":
+		sql, _ := mysqlbuilders.BuildAssignRoleSQL(query)
+		return sql
+	case "revoke_role":
+		sql, _ := mysqlbuilders.BuildRevokeRoleSQL(query)
+		return sql
+	
+	// TCL Operations
+	case "begin", "start":
+		return "START TRANSACTION"
+	case "commit":
+		return "COMMIT"
+	case "rollback":
+		return "ROLLBACK"
+	case "savepoint":
+		sql, _ := mysqlbuilders.BuildSavepointSQL(query.SavepointName)
+		return sql
+	case "rollback_to":
+		sql, _ := mysqlbuilders.BuildRollbackToSavepointSQL(query.SavepointName)
+		return sql
+	case "release_savepoint":
+		sql, _ := mysqlbuilders.BuildReleaseSavepointSQL(query.SavepointName)
+		return sql
+	case "set_transaction":
+		return mysqlbuilders.BuildSetTransactionSQL(query.IsolationLevel)
+	
+	default:
+		return "" // Unknown operation
+	}
 }

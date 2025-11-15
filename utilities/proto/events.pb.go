@@ -158,6 +158,7 @@ type RelationalQuery struct {
 	Columns          []string               `protobuf:"bytes,33,rep,name=columns,proto3" json:"columns,omitempty"`
 	SelectColumns    []*SelectColumn        `protobuf:"bytes,36,rep,name=select_columns,json=selectColumns,proto3" json:"select_columns,omitempty"`
 	SessionId        string                 `protobuf:"bytes,37,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Sql              string                 `protobuf:"bytes,38,opt,name=sql,proto3" json:"sql,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -451,6 +452,13 @@ func (x *RelationalQuery) GetSessionId() string {
 	return ""
 }
 
+func (x *RelationalQuery) GetSql() string {
+	if x != nil {
+		return x.Sql
+	}
+	return ""
+}
+
 type DocumentQuery struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Operation        string                 `protobuf:"bytes,1,opt,name=operation,proto3" json:"operation,omitempty"`
@@ -487,6 +495,7 @@ type DocumentQuery struct {
 	SessionId        string                 `protobuf:"bytes,32,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	Having           []*QueryCondition      `protobuf:"bytes,33,rep,name=having,proto3" json:"having,omitempty"`
 	Distinct         bool                   `protobuf:"varint,34,opt,name=distinct,proto3" json:"distinct,omitempty"`
+	Query            string                 `protobuf:"bytes,35,opt,name=query,proto3" json:"query,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -759,6 +768,13 @@ func (x *DocumentQuery) GetDistinct() bool {
 	return false
 }
 
+func (x *DocumentQuery) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
 type KeyValueQuery struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Command       string                 `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
@@ -766,6 +782,7 @@ type KeyValueQuery struct {
 	Args          []string               `protobuf:"bytes,3,rep,name=args,proto3" json:"args,omitempty"`
 	BulkPairs     []*KeyValuePair        `protobuf:"bytes,4,rep,name=bulk_pairs,json=bulkPairs,proto3" json:"bulk_pairs,omitempty"`
 	SessionId     string                 `protobuf:"bytes,5,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	CommandString string                 `protobuf:"bytes,6,opt,name=command_string,json=commandString,proto3" json:"command_string,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -831,6 +848,13 @@ func (x *KeyValueQuery) GetBulkPairs() []*KeyValuePair {
 func (x *KeyValueQuery) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
+	}
+	return ""
+}
+
+func (x *KeyValueQuery) GetCommandString() string {
+	if x != nil {
+		return x.CommandString
 	}
 	return ""
 }
@@ -1961,7 +1985,7 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\bdocument\x18\x02 \x01(\v2\x15.omniql.DocumentQueryH\x00R\bdocument\x124\n" +
 	"\tkey_value\x18\x03 \x01(\v2\x15.omniql.KeyValueQueryH\x00R\bkeyValueB\f\n" +
 	"\n" +
-	"query_type\"\xa3\v\n" +
+	"query_type\"\xb5\v\n" +
 	"\x0fRelationalQuery\x12\x1c\n" +
 	"\toperation\x18\x01 \x01(\tR\toperation\x12\x14\n" +
 	"\x05table\x18\x02 \x01(\tR\x05table\x126\n" +
@@ -2005,7 +2029,8 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\acolumns\x18! \x03(\tR\acolumns\x12;\n" +
 	"\x0eselect_columns\x18$ \x03(\v2\x14.omniql.SelectColumnR\rselectColumns\x12\x1d\n" +
 	"\n" +
-	"session_id\x18% \x01(\tR\tsessionId\"\xa7\n" +
+	"session_id\x18% \x01(\tR\tsessionId\x12\x10\n" +
+	"\x03sql\x18& \x01(\tR\x03sql\"\xbd\n" +
 	"\n" +
 	"\rDocumentQuery\x12\x1c\n" +
 	"\toperation\x18\x01 \x01(\tR\toperation\x12\x1e\n" +
@@ -2049,7 +2074,8 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\n" +
 	"session_id\x18  \x01(\tR\tsessionId\x12.\n" +
 	"\x06having\x18! \x03(\v2\x16.omniql.QueryConditionR\x06having\x12\x1a\n" +
-	"\bdistinct\x18\" \x01(\bR\bdistinct\"\xa3\x01\n" +
+	"\bdistinct\x18\" \x01(\bR\bdistinct\x12\x14\n" +
+	"\x05query\x18# \x01(\tR\x05query\"\xca\x01\n" +
 	"\rKeyValueQuery\x12\x18\n" +
 	"\acommand\x18\x01 \x01(\tR\acommand\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x12\n" +
@@ -2057,7 +2083,8 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\n" +
 	"bulk_pairs\x18\x04 \x03(\v2\x14.omniql.KeyValuePairR\tbulkPairs\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x05 \x01(\tR\tsessionId\"6\n" +
+	"session_id\x18\x05 \x01(\tR\tsessionId\x12%\n" +
+	"\x0ecommand_string\x18\x06 \x01(\tR\rcommandString\"6\n" +
 	"\fKeyValuePair\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"X\n" +

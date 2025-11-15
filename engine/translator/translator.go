@@ -12,7 +12,7 @@ import (
 func Translate(query *models.Query, dbType string, tenantID string) (*pb.UniversalQuery, error) {
 	// Validate database type using mapping
 	if !mapping.IsSupportedDatabase(dbType) {
-		return nil, fmt.Errorf("unsupported database type: %s (supported: %v)", dbType, mapping.SupportedDatabases)
+		return nil, fmt.Errorf("unsupported database type: %s (supported: PostgreSQL, MySQL, MongoDB, Redis)", dbType)
 	}
 
 	switch dbType {
@@ -22,9 +22,6 @@ func Translate(query *models.Query, dbType string, tenantID string) (*pb.Univers
 	case "MySQL":
 		return translateRelational(query, tenantID, TranslateMySQL, "MySQL")
 	
-	case "SQLite":
-		return translateRelational(query, tenantID, TranslateSQLite, "SQLite")
-		
 	case "MongoDB":
 		return translateDocument(query, tenantID, TranslateMongoDB, "MongoDB")
 	

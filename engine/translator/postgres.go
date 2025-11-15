@@ -5,6 +5,7 @@ import (
 	"strings"
 	"github.com/omniql-engine/omniql/mapping"
 	"github.com/omniql-engine/omniql/engine/models"
+	pgbuilders "github.com/omniql-engine/omniql/engine/builders/postgres"
 	pb "github.com/omniql-engine/omniql/utilities/proto"
 	"github.com/jinzhu/inflection"
 )
@@ -82,7 +83,7 @@ func TranslatePostgreSQL(query *models.Query, tenantID string) (*pb.RelationalQu
 		}
 	}
 	
-	return &pb.RelationalQuery{
+	result := &pb.RelationalQuery{
 		Operation:  operation,
 		Table:      table,
 		Conditions: conditions,
@@ -130,7 +131,12 @@ func TranslatePostgreSQL(query *models.Query, tenantID string) (*pb.RelationalQu
 		ViewQuery:    viewQuery,
 		DatabaseName: databaseName,
 		NewName:      newName,
-	}, nil
+	}
+	
+	// ✨ NEW: Populate SQL field for OmniQL users
+	result.Sql = buildPostgreSQLString(result)
+	
+	return result, nil
 }
 
 // ============================================================================
@@ -468,4 +474,142 @@ func mapPostgreSQLSelectColumns(selectCols []models.SelectColumn) []*pb.SelectCo
 	}
 	
 	return pbSelectCols
+}
+
+// buildPostgreSQLString populates the SQL string based on operation type
+func buildPostgreSQLString(query *pb.RelationalQuery) string {
+	operation := strings.ToLower(query.Operation)
+	
+	// CRUD Operations
+	switch operation {
+	case "select":
+		sql, _ := pgbuilders.BuildSelectSQL(query)
+		return sql
+	case "insert":
+		sql, _ := pgbuilders.BuildInsertSQL(query)
+		return sql
+	case "update":
+		sql, _ := pgbuilders.BuildUpdateSQL(query)
+		return sql
+	case "delete":
+		sql, _ := pgbuilders.BuildDeleteSQL(query)
+		return sql
+	case "upsert", "replace":
+		sql, _ := pgbuilders.BuildUpsertSQL(query)
+		return sql
+	case "bulk_insert":
+		sql, _ := pgbuilders.BuildBulkInsertSQL(query)
+		return sql
+	
+	// DDL Operations
+	case "create_table":
+		return pgbuilders.BuildCreateTableSQL(query)
+	case "alter_table":
+		sql, _ := pgbuilders.BuildAlterTableSQL(query)
+		return sql
+	case "drop_table":
+		return pgbuilders.BuildDropTableSQL(query)
+	case "truncate_table":
+		return pgbuilders.BuildTruncateTableSQL(query)
+	case "alter_table_rename":
+		sql, _ := pgbuilders.BuildRenameTableSQL(query)
+		return sql
+	case "create_index":
+		sql, _ := pgbuilders.BuildCreateIndexSQL(query)
+		return sql
+	case "drop_index":
+		sql, _ := pgbuilders.BuildDropIndexSQL(query)
+		return sql
+	case "create_database":
+		sql, _ := pgbuilders.BuildCreateDatabaseSQL(query)
+		return sql
+	case "drop_database":
+		sql, _ := pgbuilders.BuildDropDatabaseSQL(query)
+		return sql
+	case "create_view":
+		sql, _ := pgbuilders.BuildCreateViewSQL(query)
+		return sql
+	case "drop_view":
+		sql, _ := pgbuilders.BuildDropViewSQL(query)
+		return sql
+	case "alter_view":
+		sql, _ := pgbuilders.BuildAlterViewSQL(query)
+		return sql
+	
+	// DQL Operations
+	case "inner_join", "left_join", "right_join", "full_join", "cross_join":
+		sql, _ := pgbuilders.BuildJoinSQL(query)
+		return sql
+	case "count", "sum", "avg", "min", "max":
+		sql, _ := pgbuilders.BuildAggregateSQL(query)
+		return sql
+	case "row_number", "rank", "dense_rank", "lag", "lead", "ntile":
+		sql, _ := pgbuilders.BuildWindowFunctionSQL(query)
+		return sql
+	case "with":
+		return pgbuilders.BuildCTESQL(query)
+	case "subquery", "exists":
+		sql, _ := pgbuilders.BuildSubquerySQL(query)
+		return sql
+	case "like":
+		sql, _ := pgbuilders.BuildLikeSQL(query)
+		return sql
+	case "case":
+		return pgbuilders.BuildCaseSQL(query)
+	case "union", "union_all", "intersect", "except":
+		sql, _ := pgbuilders.BuildSetOperationSQL(query)
+		return sql
+	
+	// DCL Operations
+	case "grant":
+		sql, _ := pgbuilders.BuildGrantSQL(query)
+		return sql
+	case "revoke":
+		sql, _ := pgbuilders.BuildRevokeSQL(query)
+		return sql
+	case "create_user":
+		sql, _ := pgbuilders.BuildCreateUserSQL(query)
+		return sql
+	case "drop_user":
+		sql, _ := pgbuilders.BuildDropUserSQL(query)
+		return sql
+	case "alter_user":
+		sql, _ := pgbuilders.BuildAlterUserSQL(query)
+		return sql
+	case "create_role":
+		sql, _ := pgbuilders.BuildCreateRoleSQL(query)
+		return sql
+	case "drop_role":
+		sql, _ := pgbuilders.BuildDropRoleSQL(query)
+		return sql
+	case "assign_role":
+		sql, _ := pgbuilders.BuildAssignRoleSQL(query)
+		return sql
+	case "revoke_role":
+		sql, _ := pgbuilders.BuildRevokeRoleSQL(query)
+		return sql
+	
+	// TCL Operations
+	case "begin", "start":
+		return "BEGIN"
+	case "commit":
+		return "COMMIT"
+	case "rollback":
+		return "ROLLBACK"
+	case "savepoint":
+		sql, _ := pgbuilders.BuildSavepointSQL(query)
+		return sql
+	case "rollback_to":
+		sql, _ := pgbuilders.BuildRollbackToSavepointSQL(query)
+		return sql
+	case "release_savepoint":
+		sql, _ := pgbuilders.BuildReleaseSavepointSQL(query)
+		return sql
+	case "set_transaction":
+		sql, _ := pgbuilders.BuildSetTransactionSQL(query)
+		return sql
+	
+	default:
+		return "" // Unknown operation
+	}
 }

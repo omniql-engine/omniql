@@ -66,6 +66,7 @@ message RelationalQuery {
     repeated string columns = 33;
     repeated SelectColumn select_columns = 36;
     string session_id = 37;
+    string sql = 38;
 }
 
 // ============================================
@@ -114,6 +115,7 @@ message DocumentQuery {
     string session_id = 32;
     repeated QueryCondition having = 33;
     bool distinct = 34;
+    string query = 35;
 }
 
 // ============================================
@@ -126,6 +128,7 @@ message KeyValueQuery {
     repeated string args = 3;
     repeated KeyValuePair bulk_pairs = 4;
     string session_id = 5;
+    string command_string = 6;
 }
 
 message KeyValuePair {

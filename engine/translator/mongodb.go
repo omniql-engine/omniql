@@ -1,12 +1,17 @@
 package translator
 
 import (
-	 
+	"encoding/json"
+	"fmt"
 	"strings"
+	
 	"github.com/omniql-engine/omniql/mapping"
+	mongobuilders "github.com/omniql-engine/omniql/engine/builders/mongodb"
 	"github.com/omniql-engine/omniql/engine/models"
 	pb "github.com/omniql-engine/omniql/utilities/proto"
+	
 	"github.com/jinzhu/inflection"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // TranslateMongoDB converts OQL Query to MongoDB DocumentQuery
@@ -83,7 +88,7 @@ func TranslateMongoDB(query *models.Query, tenantID string) (*pb.DocumentQuery, 
 		}
 	}
 	
-	return &pb.DocumentQuery{
+	result := &pb.DocumentQuery{
 		Operation:  operation,
 		Collection: collection,
 		Conditions: conditions,
@@ -122,7 +127,12 @@ func TranslateMongoDB(query *models.Query, tenantID string) (*pb.DocumentQuery, 
 		ViewQuery:    viewQuery,
 		DatabaseName: databaseName,
 		NewName:      query.NewName,
-	}, nil
+	}
+
+		// ✨ Populate Query field for OmniQL users
+	result.Query = buildMongoDBString(result)
+
+	return result, nil
 }
 
 func mapMongoDBConditions(conditions []models.Condition) []*pb.QueryCondition {
@@ -443,5 +453,224 @@ func negateOperator(operator string) string {
 		return "$eq"
 	default:
 		return operator
+	}
+}
+
+// buildMongoDBString generates MongoDB query JSON for OmniQL users
+func buildMongoDBString(query *pb.DocumentQuery) string {
+	operation := strings.ToLower(query.Operation)
+	
+	switch operation {
+	// CRUD Operations
+	case "find":
+		filter := mongobuilders.BuildMongoFilter(query.Conditions)
+		jsonBytes, _ := json.Marshal(bson.M{"find": query.Collection, "filter": filter})
+		return string(jsonBytes)
+		
+	case "insertone":
+		doc := mongobuilders.BuildMongoDocument(query.Fields)
+		jsonBytes, _ := json.Marshal(bson.M{"insertOne": query.Collection, "document": doc})
+		return string(jsonBytes)
+		
+	case "updateone":
+		filter := mongobuilders.BuildMongoFilter(query.Conditions)
+		update := mongobuilders.BuildMongoSimpleUpdate(query.Fields)
+		jsonBytes, _ := json.Marshal(bson.M{"updateOne": query.Collection, "filter": filter, "update": update})
+		return string(jsonBytes)
+		
+	case "deleteone":
+		filter := mongobuilders.BuildMongoFilter(query.Conditions)
+		jsonBytes, _ := json.Marshal(bson.M{"deleteOne": query.Collection, "filter": filter})
+		return string(jsonBytes)
+		
+	case "insertmany":
+		docs := []bson.M{}
+		for _, row := range query.BulkData {
+			doc := mongobuilders.BuildMongoDocument(row.Fields)
+			docs = append(docs, doc)
+		}
+		jsonBytes, _ := json.Marshal(bson.M{"insertMany": query.Collection, "documents": docs})
+		return string(jsonBytes)
+		
+	case "replaceone":
+		filter := mongobuilders.BuildMongoFilter(query.Conditions)
+		doc := mongobuilders.BuildMongoDocument(query.Fields)
+		jsonBytes, _ := json.Marshal(bson.M{"replaceOne": query.Collection, "filter": filter, "replacement": doc})
+		return string(jsonBytes)
+		
+	// DDL Operations
+	case "createcollection":
+		jsonBytes, _ := json.Marshal(bson.M{"create": query.Collection})
+		return string(jsonBytes)
+		
+	case "dropcollection":
+		jsonBytes, _ := json.Marshal(bson.M{"drop": query.Collection})
+		return string(jsonBytes)
+		
+	case "renamecollection":
+		jsonBytes, _ := json.Marshal(bson.M{"renameCollection": query.Collection, "to": query.NewName})
+		return string(jsonBytes)
+		
+	case "deletemany":
+		filter := mongobuilders.BuildMongoFilter(query.Conditions)
+		jsonBytes, _ := json.Marshal(bson.M{"deleteMany": query.Collection, "filter": filter})
+		return string(jsonBytes)
+		
+	case "create_index":
+		jsonBytes, _ := json.Marshal(bson.M{"createIndexes": query.Collection})
+		return string(jsonBytes)
+		
+	case "drop_index":
+		jsonBytes, _ := json.Marshal(bson.M{"dropIndexes": query.Collection})
+		return string(jsonBytes)
+		
+	case "use":
+		return fmt.Sprintf(`{"use": "%s"}`, query.DatabaseName)
+		
+	case "drop_database":
+		return fmt.Sprintf(`{"dropDatabase": "%s"}`, query.DatabaseName)
+		
+	case "create_view":
+		collection, _ := mongobuilders.ExtractCollectionNameFromQuery(query.ViewQuery)
+		cmd, _ := mongobuilders.BuildCreateViewCommand(query.ViewName, collection)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	case "drop_view":
+		jsonBytes, _ := json.Marshal(bson.M{"drop": query.ViewName})
+		return string(jsonBytes)
+		
+	case "alter_view":
+		collection, _ := mongobuilders.ExtractCollectionNameFromQuery(query.ViewQuery)
+		cmd, _ := mongobuilders.BuildCreateViewCommand(query.ViewName, collection)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	// DQL Operations - Joins
+	case "lookup":
+		pipeline := mongobuilders.BuildMongoDBJoinPipeline(query)
+		jsonBytes, _ := json.Marshal(bson.M{"aggregate": query.Collection, "pipeline": pipeline})
+		return string(jsonBytes)
+		
+	// DQL Operations - Aggregates
+	case "count", "sum", "avg", "min", "max":
+		pipeline := mongobuilders.BuildMongoDBAggregatePipeline(query)
+		jsonBytes, _ := json.Marshal(bson.M{"aggregate": query.Collection, "pipeline": pipeline})
+		return string(jsonBytes)
+		
+	// DQL Operations - Window Functions
+	case "row_number", "rank", "dense_rank", "shift", "ntile":
+		pipeline, _ := mongobuilders.BuildWindowFunctionPipeline(query)
+		jsonBytes, _ := json.Marshal(bson.M{"aggregate": query.Collection, "pipeline": pipeline})
+		return string(jsonBytes)
+		
+	// DQL Operations - Set Operations
+	case "unionwith", "intersect", "setdifference":
+		pipeline, _ := mongobuilders.BuildSetOperationPipeline(query)
+		jsonBytes, _ := json.Marshal(bson.M{"aggregate": query.Collection, "pipeline": pipeline})
+		return string(jsonBytes)
+		
+	// DQL Operations - Others
+	case "group":
+		pipeline := mongobuilders.BuildMongoDBAggregatePipeline(query)
+		jsonBytes, _ := json.Marshal(bson.M{"aggregate": query.Collection, "pipeline": pipeline})
+		return string(jsonBytes)
+		
+	case "sort":
+		filter := mongobuilders.BuildMongoFilter(query.Conditions)
+		sort := mongobuilders.BuildMongoDBSortStage(query.OrderBy)
+		jsonBytes, _ := json.Marshal(bson.M{"find": query.Collection, "filter": filter, "sort": sort})
+		return string(jsonBytes)
+		
+	case "match":
+		filter := mongobuilders.BuildMongoFilter(query.Conditions)
+		jsonBytes, _ := json.Marshal(bson.M{"$match": filter})
+		return string(jsonBytes)
+		
+	case "distinct":
+		field := ""
+		if len(query.Columns) > 0 {
+			field = query.Columns[0]
+		}
+		filter := mongobuilders.BuildMongoFilter(query.Conditions)
+		jsonBytes, _ := json.Marshal(bson.M{"distinct": query.Collection, "key": field, "query": filter})
+		return string(jsonBytes)
+		
+	case "limit":
+		return fmt.Sprintf(`{"limit": %d}`, query.Limit)
+		
+	case "skip":
+		return fmt.Sprintf(`{"skip": %d}`, query.Skip)
+		
+	case "regex":
+		filter := mongobuilders.BuildMongoFilter(query.Conditions)
+		jsonBytes, _ := json.Marshal(bson.M{"find": query.Collection, "filter": filter})
+		return string(jsonBytes)
+		
+	case "cond":
+		// CASE WHEN - handled in aggregation pipeline
+		return `{"$cond": "see aggregation pipeline"}`
+		
+	// TCL Operations
+	case "start_transaction":
+		return `{"startTransaction": true}`
+		
+	case "commit":
+		return `{"commitTransaction": true}`
+		
+	case "abort":
+		return `{"abortTransaction": true}`
+		
+	case "set_transaction":
+		return fmt.Sprintf(`{"startTransaction": {"readConcern": {"level": "%s"}}}`, query.IsolationLevel)
+		
+	// DCL Operations
+	case "create_user":
+		cmd, _ := mongobuilders.BuildCreateUserCommand(query.UserName, query.Password)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	case "drop_user":
+		cmd, _ := mongobuilders.BuildDropUserCommand(query.UserName)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	case "alter_user":
+		cmd, _ := mongobuilders.BuildAlterUserCommand(query.UserName, query.Password)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	case "create_role":
+		cmd, _ := mongobuilders.BuildCreateRoleCommand(query.RoleName)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	case "drop_role":
+		cmd, _ := mongobuilders.BuildDropRoleCommand(query.RoleName)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	case "grant_role":
+		cmd, _ := mongobuilders.BuildGrantRoleCommand(query.UserName, query.RoleName)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	case "revoke_role":
+		cmd, _ := mongobuilders.BuildRevokeRoleCommand(query.UserName, query.RoleName)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	case "grant":
+		cmd, _ := mongobuilders.BuildGrantCommand(query.UserName, query.Permissions, query.PermissionTarget, query.DatabaseName)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	case "revoke":
+		cmd, _ := mongobuilders.BuildRevokeCommand(query.UserName, query.Permissions, query.PermissionTarget, query.DatabaseName)
+		jsonBytes, _ := json.Marshal(cmd)
+		return string(jsonBytes)
+		
+	default:
+		return "" // Unknown operation
 	}
 }
