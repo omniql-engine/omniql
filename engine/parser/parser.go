@@ -310,8 +310,8 @@ func unescapeString(s string) string {
 func parseConditions(parts []string) ([]models.Condition, error) {
 	// ✅ FIX IN OPERATOR SPACING FIRST (before any tokenization)
 	rejoined := strings.Join(parts, " ")
-	rejoined = fixInOperatorSpacing(rejoined)  // ✅ ADD THIS LINE
-	parts = strings.Fields(rejoined)            // ✅ ADD THIS LINE
+	rejoined = fixInOperatorSpacing(rejoined)  
+	parts = strings.Fields(rejoined)           
 	
 	// ✅ CONDITIONAL: Only tokenize if we detect expression patterns
 	// Check if we have expression operators in the conditions

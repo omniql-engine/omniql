@@ -545,7 +545,7 @@ var OperationMap = map[string]map[string]string{
 		"REPLACE":     "HMSET",       // ← CHANGED from "SET"
 
 		// ========== GROUP 2: DDL Operations ==========
-        "DROP TABLE":  "DROP_TABLE",  // ← ADD THIS LINE ONLY
+        "DROP TABLE":  "DROP_TABLE",  
 		
 		// ========== GROUP 4: TCL Operations ==========
 		"BEGIN":       "MULTI",       // ← NO CHANGE

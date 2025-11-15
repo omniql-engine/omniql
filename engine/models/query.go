@@ -11,7 +11,7 @@ type Query struct {
 	Operation string // GET, CREATE, UPDATE, DELETE, CREATE TABLE, INNER JOIN, COUNT, BEGIN, GRANT, etc.
 	Entity    string // User, Order, etc. (main table/collection)
 	Columns       []string       // Column selection (e.g., ["User.name", "Project.title"])
-	SelectColumns []SelectColumn // ✅ ADD THIS LINE: SELECT with expressions (e.g., price * quantity AS total)
+	SelectColumns []SelectColumn // SELECT with expressions (e.g., price * quantity AS total)
 
 	// ========== GROUP 1: CRUD ==========
 	Conditions []Condition // WHERE conditions
