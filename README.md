@@ -328,7 +328,7 @@ ROLLBACK                                       # Undo changes
 <tbody>
 <tr>
 <td><strong>PostgreSQL</strong></td>
-<td>12+</td>
+<td>15-17*</td>
 <td>✅</td>
 <td>✅</td>
 <td>✅</td>
@@ -348,7 +348,7 @@ ROLLBACK                                       # Undo changes
 </tr>
 <tr>
 <td><strong>MongoDB</strong></td>
-<td>4.4+</td>
+<td>7.0-8.x*</td>
 <td>✅</td>
 <td>✅</td>
 <td>✅</td>
@@ -358,7 +358,7 @@ ROLLBACK                                       # Undo changes
 </tr>
 <tr>
 <td><strong>Redis</strong></td>
-<td>6.0+</td>
+<td>7.0+*</td>
 <td>✅</td>
 <td>⚠️ Limited</td>
 <td>✅ via SCAN</td>
@@ -368,6 +368,13 @@ ROLLBACK                                       # Undo changes
 </tr>
 </tbody>
 </table>
+
+**\*Tested versions:** PostgreSQL 16.10, MySQL 8.0.44, MongoDB 8.0.15, Redis 7.4.4
+
+**Legend:**
+- ✅ Full support
+- ⚠️ Partial support (database architectural limitations)
+- ❌ Not applicable to database type
 
 **Legend:**
 - ✅ Full support
