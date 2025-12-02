@@ -6,6 +6,8 @@ toolchain go1.24.3
 
 require (
 	github.com/jinzhu/inflection v1.0.0
+	github.com/pganalyze/pg_query_go/v5 v5.1.0
+	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
 	go.mongodb.org/mongo-driver v1.17.6
 	google.golang.org/protobuf v1.36.10
 )

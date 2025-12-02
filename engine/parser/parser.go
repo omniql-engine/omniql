@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"github.com/omniql-engine/omniql/mapping"
 	"github.com/omniql-engine/omniql/engine/models"
+	"github.com/omniql-engine/omniql/engine/parser/ast"
 )
 
 // ============================================================================
@@ -19,6 +20,12 @@ func Parse(oql string) (*models.Query, error) {
 	
 	if oql == "" {
 		return nil, fmt.Errorf("empty query")
+	}
+	
+	// ✅ NEW: Tokenize first - validates all tokens against mapping
+	_, err := ast.Tokenize(oql)
+	if err != nil {
+		return nil, err
 	}
 	
 	parts := strings.Fields(oql)
@@ -310,8 +317,8 @@ func unescapeString(s string) string {
 func parseConditions(parts []string) ([]models.Condition, error) {
 	// ✅ FIX IN OPERATOR SPACING FIRST (before any tokenization)
 	rejoined := strings.Join(parts, " ")
-	rejoined = fixInOperatorSpacing(rejoined)  
-	parts = strings.Fields(rejoined)           
+	rejoined = fixInOperatorSpacing(rejoined)  // ✅ ADD THIS LINE
+	parts = strings.Fields(rejoined)            // ✅ ADD THIS LINE
 	
 	// ✅ CONDITIONAL: Only tokenize if we detect expression patterns
 	// Check if we have expression operators in the conditions

@@ -28,6 +28,30 @@ var OperationGroups = map[string]string{
 	"DROP VIEW":         "DDL",
 	"ALTER VIEW":        "DDL",
 	"RENAME TABLE":      "DDL",
+
+	// ↓↓↓ PG SPECIFIC↓↓↓
+	"CREATE SEQUENCE":   "DDL",
+	"ALTER SEQUENCE":    "DDL",
+	"DROP SEQUENCE":     "DDL",
+	"CREATE EXTENSION":  "DDL",
+	"DROP EXTENSION":    "DDL",
+	"CREATE SCHEMA":     "DDL",
+	"DROP SCHEMA":       "DDL",
+	"CREATE TYPE":       "DDL",
+	"DROP TYPE":         "DDL",
+	"ALTER TYPE":        "DDL",
+	"CREATE DOMAIN":     "DDL",
+	"DROP DOMAIN":       "DDL",
+	"CREATE FUNCTION":   "DDL",
+	"DROP FUNCTION":     "DDL",
+	"ALTER FUNCTION":    "DDL",
+	"CREATE TRIGGER":    "DDL",
+	"DROP TRIGGER":      "DDL",
+	"CREATE POLICY":     "DDL",
+	"DROP POLICY":       "DDL",
+	"CREATE RULE":       "DDL",
+	"DROP RULE":         "DDL",
+	"COMMENT ON":        "DDL",
 	
 	// ========== GROUP 3: DQL (31 operations) ==========
 	// JOIN operations
@@ -545,7 +569,7 @@ var OperationMap = map[string]map[string]string{
 		"REPLACE":     "HMSET",       // ← CHANGED from "SET"
 
 		// ========== GROUP 2: DDL Operations ==========
-        "DROP TABLE":  "DROP_TABLE",  
+        "DROP TABLE":  "DROP_TABLE",  // ← ADD THIS LINE ONLY
 		
 		// ========== GROUP 4: TCL Operations ==========
 		"BEGIN":       "MULTI",       // ← NO CHANGE
