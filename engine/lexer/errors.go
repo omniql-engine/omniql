@@ -1,4 +1,4 @@
-package ast
+package lexer
 
 import (
 	"fmt"
@@ -47,10 +47,36 @@ func SuggestSimilar(unknown string) string {
 	
 	var bestMatch string
 	bestDistance := 999
-	maxDistance := 3 // Only suggest if within 3 edits
+	maxDistance := 2 // Only suggest if within 2 edits (tighter matching)
 	
-	// Check operations
+	// Check common operators FIRST (highest priority for short keywords like IN)
+	commonOperators := []string{"IN", "LIKE", "BETWEEN", "AND", "OR", "NOT"}
+	for _, op := range commonOperators {
+		dist := levenshtein(unknown, op)
+		if dist <= maxDistance && dist < bestDistance {
+			bestDistance = dist
+			bestMatch = op
+		}
+	}
+	
+	// Common operations get priority (checked next, with -1 bonus)
+	commonOps := []string{"GET", "CREATE", "UPDATE", "DELETE", "COUNT", "SUM", "AVG", "MIN", "MAX"}
+	commonSet := make(map[string]bool)
+	for _, op := range commonOps {
+		commonSet[op] = true
+		dist := levenshtein(unknown, op)
+		// Give common ops a -1 bonus to prioritize them
+		if dist <= maxDistance && dist-1 < bestDistance {
+			bestDistance = dist - 1
+			bestMatch = op
+		}
+	}
+	
+	// Check remaining operations (no bonus)
 	for op := range mapping.OperationGroups {
+		if commonSet[op] {
+			continue // Already checked with bonus
+		}
 		dist := levenshtein(unknown, op)
 		if dist < bestDistance && dist <= maxDistance {
 			bestDistance = dist
@@ -58,16 +84,26 @@ func SuggestSimilar(unknown string) string {
 		}
 	}
 	
-	// Check clauses
+	// Check clauses (full and first word of two-word clauses)
 	for clause := range mapping.QueryClauses {
+		// Check full clause
 		dist := levenshtein(unknown, clause)
 		if dist < bestDistance && dist <= maxDistance {
 			bestDistance = dist
 			bestMatch = clause
 		}
+		// Check first word of two-word clauses (ORDER BY -> ORDER, GROUP BY -> GROUP)
+		if strings.Contains(clause, " ") {
+			firstWord := strings.Split(clause, " ")[0]
+			dist = levenshtein(unknown, firstWord)
+			if dist < bestDistance && dist <= maxDistance {
+				bestDistance = dist
+				bestMatch = clause // Suggest full clause
+			}
+		}
 	}
 	
-	// Check operators (first database only - they're mostly the same)
+	// Check remaining operators (first database only - they're mostly the same)
 	for _, dbOps := range mapping.OperatorMap {
 		for op := range dbOps {
 			dist := levenshtein(unknown, op)

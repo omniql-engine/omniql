@@ -1,4 +1,4 @@
-package ast
+package lexer
 
 import (
 	"fmt"
@@ -102,7 +102,7 @@ func (t *Tokenizer) tokenize() ([]Token, error) {
 			continue
 		}
 		
-		if unicode.IsDigit(rune(ch)) || (ch == '-' && t.peekDigit()) {
+		if unicode.IsDigit(rune(ch)) || (ch == '-' && t.peekDigit() && t.canStartNegativeNumber()) {
 			token := t.scanNumber()
 			t.tokens = append(t.tokens, token)
 			continue
@@ -164,6 +164,22 @@ func (t *Tokenizer) advance() {
 func (t *Tokenizer) peekDigit() bool {
 	if t.pos+1 < len(t.input) {
 		return unicode.IsDigit(rune(t.input[t.pos+1]))
+	}
+	return false
+}
+
+// ADD THIS METHOD:
+// canStartNegativeNumber checks if current position can start a negative number
+// Returns true only if previous token is an operator, '(', ',', '[', or start of input
+func (t *Tokenizer) canStartNegativeNumber() bool {
+	if len(t.tokens) == 0 {
+		return true // Start of input
+	}
+	
+	lastToken := t.tokens[len(t.tokens)-1]
+	switch lastToken.Type {
+	case TOKEN_OPERATOR, TOKEN_EQUALS, TOKEN_LPAREN, TOKEN_COMMA, TOKEN_LBRACKET, TOKEN_CLAUSE:
+		return true
 	}
 	return false
 }
@@ -351,19 +367,29 @@ func (t *Tokenizer) tryMultiWord(firstWord string) string {
 		}
 	}
 	
-	combined := firstWord + " " + strings.ToUpper(nextWord.String())
+	nextWordStr := nextWord.String()
+	nextWordUpper := strings.ToUpper(nextWordStr)
+	combined := firstWord + " " + nextWordUpper
 	
-	// Check if combined is a valid operation or clause
+	// Check if combined is a valid operation
 	if _, exists := mapping.OperationGroups[combined]; exists {
-		t.pos = tempPos
-		t.column = savedCol + (tempPos - savedPos)
-		return combined
+		// Only consume if second word is actually uppercase (USER vs User)
+		// This distinguishes "CREATE USER" (DCL) from "CREATE User" (CRUD)
+		if nextWordStr == nextWordUpper {
+			t.pos = tempPos
+			t.column = savedCol + (tempPos - savedPos)
+			return combined
+		}
 	}
 	
+	// Check if combined is a valid clause
 	if _, exists := mapping.QueryClauses[combined]; exists {
-		t.pos = tempPos
-		t.column = savedCol + (tempPos - savedPos)
-		return combined
+		// Clauses like "ORDER BY" should always match
+		if nextWordStr == nextWordUpper {
+			t.pos = tempPos
+			t.column = savedCol + (tempPos - savedPos)
+			return combined
+		}
 	}
 	
 	// Not a multi-word keyword, restore position
@@ -395,8 +421,8 @@ func (t *Tokenizer) classifyWord(upper, original string) (TokenType, error) {
 		return TOKEN_BOOLEAN, nil
 	}
 	
-	// Check for logical operators
-	if upper == "AND" || upper == "OR" || upper == "NOT" {
+	// Check for logical operators and IS keyword
+	if upper == "AND" || upper == "OR" || upper == "NOT" || upper == "IS" {
 		return TOKEN_OPERATOR, nil
 	}
 	

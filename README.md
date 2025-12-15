@@ -27,7 +27,7 @@ Modern applications use multiple databases (polyglot persistence), but each requ
 
 OmniQL provides a **single, universal query language** that translates to native database syntax:
 ```oql
-:GET User WHERE age > 25 AND status = active LIMIT 10
+GET User WHERE age > 25 AND status = 'active' LIMIT 10
 ```
 
 **Translates to:**
@@ -50,7 +50,6 @@ db.users.find({age: {$gt: 25}, status: "active"}).limit(10)
 **Redis:**
 ```redis
 SCAN 0 MATCH user:* COUNT 10
-# (with server-side filtering)
 ```
 
 **One query. Four databases. Zero rewrites.**
@@ -61,86 +60,93 @@ SCAN 0 MATCH user:* COUNT 10
 
 ### 🏗️ Production-Ready Architecture (v1.0)
 
-- ✅ **Clean Builder Separation** - SQL/query generation fully extracted and testable
+- ✅ **TrueAST Parser** - 100% expression-based AST, recursive structures everywhere
+- ✅ **Bidirectional Translation** - OQL ↔ Native (PostgreSQL, MySQL, MongoDB, Redis)
+- ✅ **Smart Error Messages** - Typo detection with "Did you mean?" suggestions
 - ✅ **Zero-Latency Translation** - Parse and translate in microseconds  
 - ✅ **Type Safety** - Universal type system with database-specific mappings
-- ✅ **Battle-Tested** - 200+ integration tests, concurrent transaction tests
-- ✅ **No Lock-In** - Native queries still work (no `:` prefix = pass-through)
+- ✅ **Battle-Tested** - 765+ tests across all components
 
-### 🎯 70+ Universal Operations
+### 🔄 Bidirectional Translation
 
-<table>
-<thead>
-<tr>
-<th>Category</th>
-<th>Operations</th>
-<th>Count</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>CRUD</strong></td>
-<td>CREATE, READ, UPDATE, DELETE, UPSERT, BULK INSERT, REPLACE</td>
-<td>✅ 7</td>
-</tr>
-<tr>
-<td><strong>DDL</strong></td>
-<td>CREATE/DROP/ALTER TABLE, INDEX, VIEW, DATABASE</td>
-<td>✅ 14</td>
-</tr>
-<tr>
-<td><strong>DQL</strong></td>
-<td>JOIN (5 types), Aggregations (5), Window Functions (6), CTEs, Subqueries, Set Operations (3), LIKE, CASE</td>
-<td>✅ 31</td>
-</tr>
-<tr>
-<td><strong>TCL</strong></td>
-<td>BEGIN, COMMIT, ROLLBACK, SAVEPOINT, ROLLBACK TO, RELEASE, SET TRANSACTION, Isolation Levels</td>
-<td>✅ 8</td>
-</tr>
-<tr>
-<td><strong>DCL</strong></td>
-<td>GRANT, REVOKE, CREATE USER, DROP USER, ALTER USER, CREATE ROLE, DROP ROLE, ASSIGN ROLE, REVOKE ROLE</td>
-<td>✅ 9</td>
-</tr>
-<tr>
-<td colspan="2"><strong>TOTAL</strong></td>
-<td><strong>✅ 69</strong></td>
-</tr>
-</tbody>
-</table>
+**OQL → Native (Forward):**
+```go
+query, _ := parser.Parse("GET User WHERE id = 1")
+result, _ := translator.Translate(query, "postgresql", "tenant1")
+// → SELECT * FROM users WHERE id = $1
+```
+
+**Native → OQL (Reverse):**
+```go
+query, _ := reverse.PostgreSQLToQuery("SELECT * FROM users WHERE id = 1")
+// → {Operation: "GET", Entity: "User", Conditions: [...]}
+
+query, _ := reverse.MySQLToQuery("SELECT * FROM users WHERE status = 'active'")
+query, _ := reverse.MongoDBToQuery(`{"find": "users", "filter": {"id": 1}}`)
+query, _ := reverse.RedisToQuery("HGETALL tenant:123:users:1")
+```
+
+### 💡 Smart Error Messages
+
+OmniQL detects typos and suggests corrections:
+```
+GTE User
+→ parse error: unknown operation 'GTE'. Did you mean 'GET'?
+
+GET User WHER id = 1
+→ parse error: unknown keyword 'WHER'. Did you mean 'WHERE'?
+
+GET User WHERE id INN (1,2,3)
+→ parse error: unknown operator 'INN'. Did you mean 'IN'?
+
+GET User ORDRE BY name
+→ parse error: unknown keyword 'ORDRE'. Did you mean 'ORDER BY'?
+```
+
+**Coverage:** 87 operations, 16 clauses, 19 operators - all with typo detection.
+
+### 🎯 87 Universal Operations
+
+| Category | Operations | Count |
+|----------|------------|-------|
+| **CRUD** | GET, CREATE, UPDATE, DELETE, UPSERT, BULK INSERT, REPLACE | ✅ 7 |
+| **DDL** | CREATE/DROP/ALTER TABLE, INDEX, VIEW, DATABASE, SCHEMA, SEQUENCE, TRIGGER, FUNCTION, TYPE, DOMAIN, POLICY, RULE, EXTENSION | ✅ 28 |
+| **DQL** | JOIN (5 types), Aggregations (5), Window Functions (6), CTEs, Subqueries, Set Operations (4), CASE, EXISTS, PARTITION BY | ✅ 31 |
+| **TCL** | BEGIN, COMMIT, ROLLBACK, SAVEPOINT, ROLLBACK TO, RELEASE SAVEPOINT, START, SET TRANSACTION | ✅ 8 |
+| **DCL** | GRANT, REVOKE, CREATE/DROP/ALTER USER, CREATE/DROP ROLE, ASSIGN ROLE, REVOKE ROLE | ✅ 9 |
+| **TOTAL** | | **✅ 87** |
 
 ### 🧮 Advanced Expression Engine
 
-**Expressions work everywhere:** UPDATE SET, WHERE, ORDER BY, SELECT
+**Expressions work everywhere:** UPDATE SET, WHERE, ORDER BY, SELECT WITH
 
 **Binary Arithmetic:**
 ```oql
-UPDATE Product SET price = price * 1.1                    # 10% increase
-UPDATE Order SET total = price * quantity                 # Field-to-field
-UPDATE Sale SET profit = (price - cost) * qty * (1 - discount)  # Nested
+UPDATE Product SET price = price * 1.1
+UPDATE Order SET total = price * quantity
+UPDATE Sale SET profit = (price - cost) * qty * (1 - discount)
 ```
 
 **String Functions:**
 ```oql
-UPDATE User SET name = UPPER(name)                        # Case conversion
-UPDATE Profile SET full_name = CONCAT(first, last)        # Concatenation
-WHERE UPPER(email) = ADMIN@EXAMPLE.COM                    # Function in WHERE
+UPDATE User SET name = UPPER(name)
+UPDATE Profile SET full_name = CONCAT(first, ' ', last)
+GET User WHERE UPPER(email) = 'ADMIN@EXAMPLE.COM'
 ```
 
 **CASE WHEN Logic:**
 ```oql
 UPDATE User SET status = CASE 
-  WHEN age >= 18 THEN adult 
-  WHEN age >= 13 THEN teen 
-  ELSE child 
+  WHEN age >= 18 THEN 'adult' 
+  WHEN age >= 13 THEN 'teen' 
+  ELSE 'child' 
 END
 ```
 
 **Calculated Columns:**
 ```oql
-GET Order WITH price * quantity AS total                  # Simple calculation
-GET Sale WITH price - cost AS profit, price * qty AS revenue  # Multiple
+GET Order WITH price * quantity AS total
+GET Sale WITH price - cost AS profit, price * qty AS revenue
 ```
 
 **Supported:**
@@ -148,111 +154,36 @@ GET Sale WITH price - cost AS profit, price * qty AS revenue  # Multiple
 - **Functions:** `UPPER`, `LOWER`, `CONCAT`, `LENGTH`, `ABS`, `ROUND`, `NOW`, `COALESCE`
 
 ### 📊 Complete Aggregation Support
-
-**All aggregations work with ALL clauses:**
 ```oql
 # Basic aggregations
-GET User COUNT
-GET Sale SUM amount
-GET Score AVG points
-GET Price MIN value
-GET Stock MAX quantity
+COUNT User
+SUM Sale amount
+AVG Score points
+MIN Price value
+MAX Stock quantity
 
 # With filtering
-GET User WHERE age > 25 COUNT
-GET Sale WHERE status = completed SUM amount
+COUNT User WHERE age > 25
+SUM Sale WHERE status = 'completed' amount
 
 # With grouping
-GET Order GROUP BY customer COUNT
-GET Revenue GROUP BY region SUM amount
+COUNT Order GROUP BY customer
+SUM Revenue GROUP BY region
 
 # With HAVING
-GET Sale GROUP BY dept SUM amount HAVING SUM(amount) > 10000
+SUM Sale GROUP BY dept HAVING SUM(amount) > 10000
 
 # Complex combinations
-GET Order WHERE status = active GROUP BY customer SUM total 
-  HAVING SUM(total) > 1000 ORDER BY customer:ASC LIMIT 10
+SUM Order WHERE status = 'active' GROUP BY customer 
+  HAVING SUM(total) > 1000 ORDER BY customer LIMIT 10
 ```
-
-**Aggregation + Clause Support Matrix:**
-
-<table>
-<thead>
-<tr>
-<th>Clause</th>
-<th>COUNT</th>
-<th>SUM</th>
-<th>AVG</th>
-<th>MIN</th>
-<th>MAX</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>WHERE</strong></td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><strong>LIMIT</strong></td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><strong>OFFSET</strong></td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><strong>ORDER BY</strong></td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><strong>GROUP BY</strong></td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><strong>HAVING</strong></td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><strong>DISTINCT</strong></td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>❌</td>
-<td>❌</td>
-</tr>
-</tbody>
-</table>
 
 ### 🔗 Advanced Query Features
 
 **JOINs (5 types):**
 ```oql
 GET User INNER JOIN Order ON User.id = Order.user_id
-GET User LEFT JOIN Order ON User.id = Order.user_id WHERE Order.status = active
+GET User LEFT JOIN Order ON User.id = Order.user_id WHERE Order.status = 'active'
 GET Product RIGHT JOIN Category ON Product.category_id = Category.id
 GET TableA FULL JOIN TableB ON TableA.key = TableB.key
 GET UserA CROSS JOIN UserB
@@ -270,15 +201,16 @@ GET Metric WITH LEAD(value) OVER (ORDER BY date) AS next_value
 
 **Common Table Expressions (CTEs):**
 ```oql
-WITH regional_sales AS (GET Sale GROUP BY region SUM amount) 
+CTE regional_sales AS (SUM Sale GROUP BY region) 
   GET regional_sales WHERE total > 100000
 ```
 
 **Set Operations:**
 ```oql
-GET User WHERE age > 25 UNION GET User WHERE status = premium
-GET Product WHERE category = electronics INTERSECT GET Product WHERE price < 1000
-GET Employee EXCEPT GET Employee WHERE department = deprecated
+GET User WHERE age > 25 UNION GET User WHERE status = 'premium'
+GET Product WHERE category = 'electronics' INTERSECT GET Product WHERE price < 1000
+GET Employee EXCEPT GET Employee WHERE department = 'deprecated'
+UNION ALL ...
 ```
 
 ### 🔒 Enterprise-Grade Security
@@ -287,19 +219,18 @@ GET Employee EXCEPT GET Employee WHERE department = deprecated
 - ✅ **Input Sanitization** - Automatic escaping of special characters  
 - ✅ **Safe String Handling** - Apostrophes (`O'Brien`), quotes, backslashes handled correctly
 - ✅ **Type Validation** - Strong type checking at parse time
-- ✅ **Tested Against Attacks** - Comprehensive security test suite
 
 ### ⚡ Transaction Support
 ```oql
-BEGIN                                          # Start transaction
+BEGIN
 UPDATE Account SET balance = balance - 100 WHERE id = 1
 UPDATE Account SET balance = balance + 100 WHERE id = 2
-COMMIT                                         # Commit changes
+COMMIT
 
 # Or rollback on error
 BEGIN
 UPDATE Inventory SET stock = stock - 10
-ROLLBACK                                       # Undo changes
+ROLLBACK
 ```
 
 **Advanced Transaction Control:**
@@ -312,62 +243,12 @@ ROLLBACK                                       # Undo changes
 
 ## 🗄️ Supported Databases
 
-<table>
-<thead>
-<tr>
-<th>Database</th>
-<th>Version</th>
-<th>CRUD</th>
-<th>Expressions</th>
-<th>Aggregations</th>
-<th>JOINs</th>
-<th>Window Fns</th>
-<th>Transactions</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>PostgreSQL</strong></td>
-<td>16+</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><strong>MySQL</strong></td>
-<td>8.0+</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><strong>MongoDB</strong></td>
-<td>8.0+</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅</td>
-<td>✅ via $lookup</td>
-<td>⚠️ Limited</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><strong>Redis</strong></td>
-<td>7.0+</td>
-<td>✅</td>
-<td>⚠️ Limited</td>
-<td>✅ via SCAN</td>
-<td>❌</td>
-<td>❌</td>
-<td>✅</td>
-</tr>
-</tbody>
-</table>
+| Database | Version | CRUD | Expressions | Aggregations | JOINs | Window Fns | Transactions | Reverse Parser |
+|----------|---------|------|-------------|--------------|-------|------------|--------------|----------------|
+| **PostgreSQL** | 16+ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **MySQL** | 8.0+ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **MongoDB** | 8.0+ | ✅ | ✅ | ✅ | ✅ via $lookup | ⚠️ Limited | ✅ | ✅ |
+| **Redis** | 7.0+ | ✅ | ⚠️ Limited | ✅ via SCAN | ❌ | ❌ | ✅ | ✅ |
 
 **Tested versions:** PostgreSQL 16.10, MySQL 8.0.44, MongoDB 8.0.15, Redis 7.4.4
 
@@ -376,29 +257,12 @@ ROLLBACK                                       # Undo changes
 - ⚠️ Partial support (database architectural limitations)  
 - ❌ Not applicable to database type
 
-**Note:** Nearby versions (PostgreSQL 15/17, MongoDB 7.x) likely compatible but untested.
-
-
-### Database-Specific Notes:
-
-**PostgreSQL** - Full OQL support, all 69 operations work perfectly
-
-**MySQL** - Full OQL support, minor syntax differences handled automatically  
-
-**MongoDB** - Full document operations, aggregation pipelines, JOIN support via `$lookup`
-
-**Redis** - Key-value operations, aggregations via SCAN, no complex queries (not a relational database)
-
 ---
 
 ## 🚀 Installation
-
-**Go:**
 ```bash
 go get github.com/omniql-engine/omniql
 ```
-
-> **Note:** Currently Go only. JavaScript/TypeScript and Python SDKs planned for future releases.
 
 ---
 
@@ -406,125 +270,98 @@ go get github.com/omniql-engine/omniql
 
 ### Basic CRUD
 ```go
-import "github.com/omniql-engine/omniql/engine/translator"
-import "github.com/omniql-engine/omniql/engine/parser"
+import (
+    "github.com/omniql-engine/omniql/engine/parser"
+    "github.com/omniql-engine/omniql/engine/translator"
+)
 
 // Parse OQL
-query, _ := parser.Parse(":GET User WHERE age > 25")
+query, _ := parser.Parse("GET User WHERE age > 25")
 
-// Translate to PostgreSQL
-result, _ := translator.Translate(query, "PostgreSQL", "")
-sql := result.GetRelational().Sql
-// "SELECT * FROM users WHERE age > $1"
-
-// Execute with your own database
-db.Query(sql, 25)
+// Translate to any database
+pgResult, _ := translator.Translate(query, "postgresql", "tenant1")
+myResult, _ := translator.Translate(query, "mysql", "tenant1")
+mongoResult, _ := translator.Translate(query, "mongodb", "tenant1")
+redisResult, _ := translator.Translate(query, "redis", "tenant1")
 ```
 
-### Advanced Expressions
+### Reverse Parsing (SQL → OQL)
 ```go
-// Complex calculation with CASE WHEN
-oql := `:UPDATE Product SET 
-  discount = CASE 
-    WHEN stock > 100 THEN 0.20 
-    WHEN stock > 50 THEN 0.10 
-    ELSE 0.05 
-  END,
-  final_price = price * (1 - discount)
-  WHERE category = electronics`
+import "github.com/omniql-engine/omniql/engine/reverse"
 
-query, _ := parser.Parse(oql)
-result, _ := translator.Translate(query, "MySQL", "")
-sql := result.GetRelational().Sql
-// MySQL-specific SQL with proper syntax
+// PostgreSQL → OQL
+query, _ := reverse.PostgreSQLToQuery("SELECT * FROM users WHERE id = 1")
+fmt.Println(query.Operation) // "GET"
+fmt.Println(query.Entity)    // "User"
+
+// MySQL → OQL
+query, _ := reverse.MySQLToQuery("INSERT INTO users (name, age) VALUES ('John', 25)")
+fmt.Println(query.Operation) // "CREATE"
+
+// MongoDB → OQL
+query, _ := reverse.MongoDBToQuery(`{"find": "users", "filter": {"status": "active"}}`)
+
+// Redis → OQL
+query, _ := reverse.RedisToQuery("HGETALL tenant:123:users:1")
 ```
 
-### Aggregations with GROUP BY
+### Error Handling with Suggestions
 ```go
-oql := `:GET Sale 
-  WHERE date >= 2024-01-01 
-  GROUP BY region 
-  SUM amount 
-  HAVING SUM(amount) > 100000 
-  ORDER BY region:ASC`
-
-query, _ := parser.Parse(oql)
-result, _ := translator.Translate(query, "PostgreSQL", "")
-sql := result.GetRelational().Sql
-// Complex aggregation with grouping and filtering
+query, err := parser.Parse("GET User WHER id = 1")
+if err != nil {
+    fmt.Println(err)
+    // parse error at line 1, column 10: unknown keyword 'WHER'. Did you mean 'WHERE'?
+}
 ```
 
-### Multi-Database Support
-```go
-oql := ":GET User WHERE status = active ORDER BY created_at:DESC LIMIT 10"
-query, _ := parser.Parse(oql)
+---
 
-// Same query, different databases
-pgResult, _ := translator.Translate(query, "PostgreSQL", "")
-pgSQL := pgResult.GetRelational().Sql
-
-mysqlResult, _ := translator.Translate(query, "MySQL", "")
-mysqlSQL := mysqlResult.GetRelational().Sql
-
-mongoResult, _ := translator.Translate(query, "MongoDB", "")
-mongoQuery := mongoResult.GetDocument().Query
-
-// All three return database-native syntax
+## 📁 Project Structure
+```
+omniql/
+├── engine/
+│   ├── ast/           # Abstract Syntax Tree nodes
+│   ├── models/        # Query model definitions
+│   ├── lexer/         # Tokenizer with error suggestions
+│   ├── parser/        # OQL → AST parser
+│   ├── builders/      # AST → Native query builders
+│   │   ├── mongodb/
+│   │   ├── mysql/
+│   │   ├── postgres/
+│   │   └── redis/
+│   ├── reverse/       # Native → OQL parsers
+│   ├── translator/    # Translation orchestration
+│   └── validator/     # Query validation per database
+├── mapping/           # Operations, clauses, operators (SSOT)
+└── utilities/
+    └── proto/         # Protocol buffer definitions
 ```
 
 ---
 
 ## 🎉 What's New in v1.0
 
-### Major Improvements
+### Major Features
 
-**🏗️ Clean Architecture**
-- Extracted SQL builders into separate, testable modules
-- Clear separation: Translation → Building → Execution
-- Single source of truth for query generation
+**🔄 Bidirectional Translation**
+- Forward: OQL → PostgreSQL, MySQL, MongoDB, Redis
+- Reverse: PostgreSQL, MySQL, MongoDB, Redis → OQL
+- Full round-trip support for query migration
 
-**🧮 Complete Expression Support**
-- Binary arithmetic in all contexts (UPDATE, WHERE, SELECT, ORDER BY)
-- String functions (UPPER, LOWER, CONCAT, LENGTH)
-- Math functions (ABS, ROUND)
-- CASE WHEN statements with multiple conditions
-- Nested expressions with parentheses
+**💡 Smart Error Messages**
+- Levenshtein distance-based typo detection
+- Suggestions for 87 operations, 16 clauses, 19 operators
+- Unconsumed token detection (no more silent failures)
 
-**📊 Full Aggregation Coverage**
-- All 5 aggregations (COUNT, SUM, AVG, MIN, MAX)
-- Work with ALL clauses (WHERE, GROUP BY, HAVING, LIMIT, etc.)
-- DISTINCT support for COUNT, SUM, AVG
-- Complex multi-clause combinations
+**🏗️ TrueAST Architecture**
+- 100% expression-based AST
+- Recursive structures for complex expressions
+- Clean separation: Lexer → Parser → Translator → Builder
 
-**🔒 Production-Ready Security**
-- Comprehensive SQL injection prevention
-- Safe handling of special characters
-- Input validation at parse time
-- Tested with malicious inputs
-
-**✅ Battle-Tested**
-- 200+ integration tests across all databases
-- Concurrent transaction testing
-- Expression security testing
-- Correctness verification tests
-
-### Breaking Changes from v0.x
-
-- ❌ **Removed SQLite** - Untested, removed from official support
-- ✅ **Translators now populate output fields** - `result.Sql`, `result.Query`, `result.CommandString` are now populated
-- ✅ **Builder functions exported** - Available at `github.com/omniql-engine/omniql/engine/builders`
-
----
-
-## 📚 Documentation
-
-**Full documentation coming soon at omniql.com**
-
-For now, explore:
-- `/engine/parser` - OQL syntax parser
-- `/engine/translator` - Database-specific translators
-- `/engine/builders` - SQL/query builders
-- `/mapping` - Operation and operator mappings
+**✅ Comprehensive Testing**
+- 765+ tests across all components
+- Round-trip validation for all reverse parsers
+- Expression parsing edge cases covered
 
 ---
 
@@ -533,7 +370,7 @@ For now, explore:
 We welcome contributions! OmniQL is open-source and community-driven.
 
 **Areas for contribution:**
-- Additional database support (CassandraDB, TimescaleDB, QuestDB)
+- Additional database support (CassandraDB, TimescaleDB, ClickHouse)
 - SDK implementations (Node.js, Python, Rust)
 - Documentation improvements
 - Bug fixes and performance improvements
@@ -562,7 +399,7 @@ We welcome contributions! OmniQL is open-source and community-driven.
 - [ ] Execution plan analysis
 
 ### v2.0 (Future)
-- [ ] Additional databases (CassandraDB, TimescaleDB, QuestDB)
+- [ ] Additional databases (CassandraDB, TimescaleDB, ClickHouse)
 - [ ] GraphQL-style nested queries
 - [ ] Query result caching
 - [ ] Real-time query monitoring
@@ -579,7 +416,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 💬 About
 
-OmniQL is developed and maintained by **Binary Leap EU** (https://binaryleap.eu).
+OmniQL is developed and maintained by **Binary Leap OÜ** (https://binaryleap.eu).
 
 **Why we built this:**
 
@@ -594,7 +431,5 @@ We needed a universal query abstraction for a multi-tenant database platform. In
 **⭐ Star this repo if you find it useful!**
 
 **Questions?** [Open an issue](https://github.com/omniql-engine/omniql/issues)
-
-**Follow us:** [Twitter](https://twitter.com/omniql) • [LinkedIn](https://linkedin.com/company/omniql)
 
 </div>

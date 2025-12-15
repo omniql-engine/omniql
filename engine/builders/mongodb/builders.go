@@ -16,67 +16,268 @@ import (
 )
 
 // ============================================================================
+// NIL-SAFE HELPERS (TrueAST)
+// ============================================================================
+
+func getCondField(cond *pb.QueryCondition) string {
+	if cond == nil || cond.FieldExpr == nil {
+		return ""
+	}
+	return cond.FieldExpr.Value
+}
+
+func getCondValue(cond *pb.QueryCondition) string {
+	if cond == nil || cond.ValueExpr == nil {
+		return ""
+	}
+	return cond.ValueExpr.Value
+}
+
+func getFieldName(field *pb.QueryField) string {
+	if field == nil || field.NameExpr == nil {
+		return ""
+	}
+	return field.NameExpr.Value
+}
+
+func getFieldValue(field *pb.QueryField) string {
+	if field == nil || field.ValueExpr == nil {
+		return ""
+	}
+	return field.ValueExpr.Value
+}
+
+func getOrderByField(ob *pb.OrderByClause) string {
+	if ob == nil || ob.FieldExpr == nil {
+		return ""
+	}
+	return ob.FieldExpr.Value
+}
+
+func getJoinLeft(join *pb.JoinClause) string {
+	if join == nil || join.LeftExpr == nil {
+		return ""
+	}
+	return join.LeftExpr.Value
+}
+
+func getJoinRight(join *pb.JoinClause) string {
+	if join == nil || join.RightExpr == nil {
+		return ""
+	}
+	return join.RightExpr.Value
+}
+
+func getAggField(agg *pb.AggregateClause) string {
+	if agg == nil || agg.FieldExpr == nil {
+		return ""
+	}
+	return agg.FieldExpr.Value
+}
+
+
+// ============================================================================
 // FILTER BUILDING
 // ============================================================================
 
-// BuildMongoFilter builds a BSON filter from conditions with expression support
+// BuildMongoFilter builds a BSON filter from conditions with full operator support
 func BuildMongoFilter(conditions []*pb.QueryCondition) bson.M {
 	if len(conditions) == 0 {
 		return bson.M{}
 	}
 
-	filter := bson.M{}
-	var exprConditions []interface{}
-	
+	hasOrLogic := false
 	for _, cond := range conditions {
-		// Check if field contains expression operators
-		if IsFieldExpression(cond.Field) {
-			// Build $expr for expression-based condition
-			exprCond := BuildExprCondition(cond)
-			exprConditions = append(exprConditions, exprCond)
-		} else {
-			// Regular field - use standard filter
-			value := ParseMongoValue(cond.Value)
-			mongoOp := cond.Operator
-			
-			if mongoOp == "$eq" {
-				filter[cond.Field] = value
-			} else {
-				filter[cond.Field] = bson.M{mongoOp: value}
-			}
-		}
-	}
-	
-	// If we have expression conditions, add them with $expr
-	if len(exprConditions) > 0 {
-		if len(exprConditions) == 1 {
-			filter["$expr"] = exprConditions[0]
-		} else {
-			filter["$expr"] = bson.M{"$and": exprConditions}
+		if cond.Logic == "OR" {
+			hasOrLogic = true
+			break
 		}
 	}
 
+	if hasOrLogic || hasNestedConditions(conditions) {
+		return buildFilterRecursive(conditions)
+	}
+
+	filter := bson.M{}
+	for _, cond := range conditions {
+		addConditionToFilter(filter, cond)
+	}
 	return filter
+}
+
+func hasNestedConditions(conditions []*pb.QueryCondition) bool {
+	for _, cond := range conditions {
+		if len(cond.Nested) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func buildFilterRecursive(conditions []*pb.QueryCondition) bson.M {
+	if len(conditions) == 0 {
+		return bson.M{}
+	}
+
+	if len(conditions) == 1 {
+		cond := conditions[0]
+		if len(cond.Nested) > 0 {
+			return buildFilterRecursive(cond.Nested)
+		}
+		return buildSingleConditionFilter(cond)
+	}
+
+	var andGroups []bson.M
+	var currentOrGroup []bson.M
+
+	for i, cond := range conditions {
+		var condFilter bson.M
+		if len(cond.Nested) > 0 {
+			condFilter = buildFilterRecursive(cond.Nested)
+		} else {
+			condFilter = buildSingleConditionFilter(cond)
+		}
+
+		if i == 0 || cond.Logic == "" || cond.Logic == "AND" {
+			if len(currentOrGroup) > 0 {
+				if len(currentOrGroup) == 1 {
+					andGroups = append(andGroups, currentOrGroup[0])
+				} else {
+					andGroups = append(andGroups, bson.M{"$or": currentOrGroup})
+				}
+				currentOrGroup = nil
+			}
+			andGroups = append(andGroups, condFilter)
+		} else if cond.Logic == "OR" {
+			if len(andGroups) > 0 {
+				lastAnd := andGroups[len(andGroups)-1]
+				andGroups = andGroups[:len(andGroups)-1]
+				currentOrGroup = append(currentOrGroup, lastAnd)
+			}
+			currentOrGroup = append(currentOrGroup, condFilter)
+		}
+	}
+
+	if len(currentOrGroup) > 0 {
+		if len(currentOrGroup) == 1 {
+			andGroups = append(andGroups, currentOrGroup[0])
+		} else {
+			andGroups = append(andGroups, bson.M{"$or": currentOrGroup})
+		}
+	}
+
+	if len(andGroups) == 1 {
+		return andGroups[0]
+	}
+	return bson.M{"$and": andGroups}
+}
+
+func buildSingleConditionFilter(cond *pb.QueryCondition) bson.M {
+	// TrueAST: Handle BINARY/FUNCTION expressions via AST traversal
+	if cond.FieldExpr != nil && (cond.FieldExpr.Type == "BINARY" || cond.FieldExpr.Type == "FUNCTION") {
+		leftExpr := BuildMongoExpressionFromAST(cond.FieldExpr)
+		rightValue := ParseMongoValue(cond.ValueExpr.Value)
+
+		var compOp string
+		switch cond.Operator {
+		case "$gt", ">":
+			compOp = "$gt"
+		case "$gte", ">=":
+			compOp = "$gte"
+		case "$lt", "<":
+			compOp = "$lt"
+		case "$lte", "<=":
+			compOp = "$lte"
+		case "$ne", "!=":
+			compOp = "$ne"
+		default:
+			compOp = "$eq"
+		}
+		return bson.M{"$expr": bson.M{compOp: bson.A{leftExpr, rightValue}}}
+	}
+
+	field := cond.FieldExpr.Value
+	operator := cond.Operator
+
+	// Legacy fallback for string-based expressions
+	if IsFieldExpression(field) {
+		return bson.M{"$expr": BuildExprCondition(cond)}
+	}
+
+	switch operator {
+	case "IS_NULL":
+		return bson.M{field: bson.M{"$eq": nil}}
+	case "IS_NOT_NULL":
+		return bson.M{field: bson.M{"$ne": nil}}
+	case "$in":
+		values := exprSliceToStrings(cond.ValuesExpr)
+		return bson.M{field: bson.M{"$in": parseMongoValues(values)}}
+	case "$nin":
+		values := exprSliceToStrings(cond.ValuesExpr)
+		return bson.M{field: bson.M{"$nin": parseMongoValues(values)}}
+	case "BETWEEN":
+		v1 := ParseMongoValue(cond.ValueExpr.Value)
+		v2 := ParseMongoValue(cond.Value2Expr.Value)
+		return bson.M{field: bson.M{"$gte": v1, "$lte": v2}}
+	case "NOT_BETWEEN":
+		v1 := ParseMongoValue(cond.ValueExpr.Value)
+		v2 := ParseMongoValue(cond.Value2Expr.Value)
+		return bson.M{"$or": bson.A{
+			bson.M{field: bson.M{"$lt": v1}},
+			bson.M{field: bson.M{"$gt": v2}},
+		}}
+	case "$eq":
+		return bson.M{field: ParseMongoValue(cond.ValueExpr.Value)}
+	case "$regex":
+		pattern := cond.ValueExpr.Value
+		pattern = strings.ReplaceAll(pattern, "%", ".*")
+		pattern = strings.ReplaceAll(pattern, "_", ".")
+		return bson.M{field: bson.M{"$regex": pattern, "$options": "i"}}
+	default:
+		return bson.M{field: bson.M{operator: ParseMongoValue(cond.ValueExpr.Value)}}
+	}
+}
+
+// exprSliceToStrings extracts Value strings from Expression slice
+func exprSliceToStrings(exprs []*pb.Expression) []string {
+	result := make([]string, len(exprs))
+	for i, e := range exprs {
+		result[i] = e.Value
+	}
+	return result
+}
+
+func parseMongoValues(values []string) bson.A {
+	result := bson.A{}
+	for _, v := range values {
+		result = append(result, ParseMongoValue(v))
+	}
+	return result
+}
+
+func addConditionToFilter(filter bson.M, cond *pb.QueryCondition) {
+	singleFilter := buildSingleConditionFilter(cond)
+	for k, v := range singleFilter {
+		filter[k] = v
+	}
 }
 
 // ============================================================================
 // DOCUMENT BUILDING
 // ============================================================================
 
-// BuildMongoDocument builds a BSON document from fields
 func BuildMongoDocument(fields []*pb.QueryField) bson.M {
 	document := bson.M{}
 	for _, field := range fields {
-		document[field.Name] = ParseMongoValue(field.Value)
+		document[field.NameExpr.Value] = ParseMongoValue(field.ValueExpr.Value)
 	}
 	return document
 }
 
 // ============================================================================
-// UPDATE BUILDING - SIMPLE (No expressions or simple field+literal)
+// UPDATE BUILDING - SIMPLE
 // ============================================================================
 
-// BuildMongoSimpleUpdate builds simple $set/$inc/$mul update
 func BuildMongoSimpleUpdate(fields []*pb.QueryField) bson.M {
 	update := bson.M{}
 	setFields := bson.M{}
@@ -84,35 +285,34 @@ func BuildMongoSimpleUpdate(fields []*pb.QueryField) bson.M {
 	mulFields := bson.M{}
 	
 	for _, field := range fields {
-		expr := field.GetExpression()
+		fieldName := field.NameExpr.Value
 		
-		if expr != nil && expr.ExpressionType == "BINARY" {
-			// Only simple: field OP literal (not field OP field)
-			if expr.LeftIsField && !expr.RightIsField {
-				rightValue := ParseMongoValue(expr.RightOperand)
+		if field.ValueExpr != nil && field.ValueExpr.Type == "BINARY" {
+			expr := field.ValueExpr
+			if expr.Left != nil && expr.Left.Type == "FIELD" && expr.Right != nil && expr.Right.Type != "FIELD" {
+				rightValue := ParseMongoValue(expr.Right.Value)
 				
 				switch expr.Operator {
 				case "+":
-					incFields[field.Name] = rightValue
+					incFields[fieldName] = rightValue
 				case "-":
 					if numValue, ok := rightValue.(int); ok {
-						incFields[field.Name] = -numValue
+						incFields[fieldName] = -numValue
 					}
 				case "*":
-					mulFields[field.Name] = rightValue
+					mulFields[fieldName] = rightValue
 				case "/":
 					if numValue, ok := rightValue.(int); ok && numValue != 0 {
-						mulFields[field.Name] = 1.0 / float64(numValue)
+						mulFields[fieldName] = 1.0 / float64(numValue)
 					}
 				default:
-					setFields[field.Name] = field.Value
+					setFields[fieldName] = field.ValueExpr.Value
 				}
 			} else {
-				setFields[field.Name] = field.Value
+				setFields[fieldName] = field.ValueExpr.Value
 			}
 		} else {
-			// No expression, regular $set
-			setFields[field.Name] = ParseMongoValue(field.Value)
+			setFields[fieldName] = ParseMongoValue(field.ValueExpr.Value)
 		}
 	}
 	
@@ -134,53 +334,66 @@ func BuildMongoSimpleUpdate(fields []*pb.QueryField) bson.M {
 }
 
 // ============================================================================
-// UPDATE BUILDING - PIPELINE (Complex expressions)
+// UPDATE BUILDING - PIPELINE
 // ============================================================================
 
-// BuildMongoPipelineUpdate builds aggregation pipeline for complex expressions
 func BuildMongoPipelineUpdate(fields []*pb.QueryField) mongo.Pipeline {
 	setStage := bson.M{}
 	
 	for _, field := range fields {
-		expr := field.GetExpression()
+		fieldName := field.NameExpr.Value
 		
-		if expr == nil {
-			// Simple literal value
-			setStage[field.Name] = ParseMongoValue(field.Value)
+		if field.ValueExpr == nil {
+			setStage[fieldName] = ""
 			continue
 		}
 		
-		// Build expression based on type
-		switch expr.ExpressionType {
+		switch field.ValueExpr.Type {
 		case "BINARY":
-			result := BuildMongoBinaryExpression(expr)
-			log.Printf("🔍 Field '%s' built as: %+v", field.Name, result)
-			setStage[field.Name] = result
-			
+			result := BuildMongoBinaryExpression(field.ValueExpr)
+			log.Printf("🔍 Field '%s' built as: %+v", fieldName, result)
+			setStage[fieldName] = result
 		case "FUNCTION":
-			setStage[field.Name] = BuildMongoFunctionExpression(expr)
-			
+			setStage[fieldName] = BuildMongoFunctionExpression(field.ValueExpr)
 		case "CASEWHEN":
-			setStage[field.Name] = BuildMongoCaseWhenExpression(expr)
-			
+			setStage[fieldName] = BuildMongoCaseWhenExpression(field.ValueExpr)
 		default:
-			// Unknown expression type, use literal
-			setStage[field.Name] = field.Value
+			setStage[fieldName] = field.ValueExpr.Value
 		}
 	}
 	
 	log.Printf("🔍 Final pipeline $set stage: %+v", setStage)
 	
-	// Return pipeline: [{ $set: {...} }]
 	return mongo.Pipeline{
 		{{Key: "$set", Value: setStage}},
 	}
 }
 
-// BuildMongoBinaryExpression builds MongoDB expression for binary operations
-func BuildMongoBinaryExpression(expr *pb.FieldExpression) interface{} {
-	leftValue := BuildMongoOperand(expr.LeftOperand, expr.LeftIsField)
-	rightValue := BuildMongoOperand(expr.RightOperand, expr.RightIsField)
+// BuildMongoExpressionFromAST converts TrueAST Expression to MongoDB expression
+func BuildMongoExpressionFromAST(expr *pb.Expression) interface{} {
+	if expr == nil {
+		return nil
+	}
+	switch expr.Type {
+	case "BINARY":
+		return BuildMongoBinaryExpression(expr)
+	case "FUNCTION":
+		return BuildMongoFunctionExpression(expr)
+	case "FIELD":
+		return "$" + expr.Value
+	case "LITERAL":
+		return ParseMongoValue(expr.Value)
+	default:
+		if expr.Value != "" {
+			return "$" + expr.Value
+		}
+		return nil
+	}
+}
+
+func BuildMongoBinaryExpression(expr *pb.Expression) interface{} {
+	leftValue := buildOperand(expr.Left)
+	rightValue := buildOperand(expr.Right)
 	
 	switch expr.Operator {
 	case "+":
@@ -198,65 +411,33 @@ func BuildMongoBinaryExpression(expr *pb.FieldExpression) interface{} {
 	}
 }
 
-// IsComplexExpression checks if an operand string is a complex expression
-func IsComplexExpression(operand string) bool {
-	operand = strings.TrimSpace(operand)
-	
-	// Check for parentheses (nested expressions)
-	if strings.Contains(operand, "(") || strings.Contains(operand, ")") {
-		return true
+func buildOperand(expr *pb.Expression) interface{} {
+	if expr == nil {
+		return nil
 	}
-	
-	// Check for binary operators (with spaces)
-	operators := []string{" + ", " - ", " * ", " / ", " % "}
-	for _, op := range operators {
-		if strings.Contains(operand, op) {
-			return true
-		}
+	switch expr.Type {
+	case "FIELD":
+		return "$" + expr.Value
+	case "BINARY":
+		return BuildMongoBinaryExpression(expr)
+	case "FUNCTION":
+		return BuildMongoFunctionExpression(expr)
+	case "LITERAL":
+		return ParseMongoValue(expr.Value)
+	default:
+		return ParseMongoValue(expr.Value)
 	}
-	
-	return false
 }
 
-// BuildMongoOperand builds a MongoDB operand (field reference or literal)
-func BuildMongoOperand(operand string, isField bool) interface{} {
-	// ALWAYS check for complex expressions FIRST, regardless of isField flag
-	if IsComplexExpression(operand) {
-		return ParseFieldExpression(operand)
-	}
-	
-	if isField {
-		// Simple field reference: prefix with $
-		return "$" + operand
-	}
-	
-	// Literal value
-	return ParseMongoValue(operand)
-}
-
-// BuildMongoFunctionExpression builds MongoDB expression for functions
-func BuildMongoFunctionExpression(expr *pb.FieldExpression) interface{} {
+func BuildMongoFunctionExpression(expr *pb.Expression) interface{} {
 	funcName := strings.ToUpper(expr.FunctionName)
 	
-	// Build arguments
 	var args []interface{}
 	for _, arg := range expr.FunctionArgs {
-		// Check if arg is a field (starts with letter, no quotes)
-		if len(arg) > 0 && !strings.HasPrefix(arg, "'") && !strings.HasPrefix(arg, "\"") {
-			// Check if it's a number
-			val := ParseMongoValue(arg)
-			if _, ok := val.(int); ok {
-				args = append(args, val)
-			} else if _, ok := val.(float64); ok {
-				args = append(args, val)
-			} else {
-				// It's a field
-				args = append(args, "$"+arg)
-			}
+		if arg.Type == "FIELD" {
+			args = append(args, "$"+arg.Value)
 		} else {
-			// Remove quotes if present
-			cleanArg := strings.Trim(arg, "'\"")
-			args = append(args, cleanArg)
+			args = append(args, ParseMongoValue(arg.Value))
 		}
 	}
 	
@@ -285,23 +466,29 @@ func BuildMongoFunctionExpression(expr *pb.FieldExpression) interface{} {
 		}
 	}
 	
-	// Unknown function, return first arg or empty string
 	if len(args) > 0 {
 		return args[0]
 	}
 	return ""
 }
 
-// BuildMongoCaseWhenExpression builds MongoDB $switch expression for CASE WHEN
-func BuildMongoCaseWhenExpression(expr *pb.FieldExpression) interface{} {
+func BuildMongoCaseWhenExpression(expr *pb.Expression) interface{} {
 	branches := bson.A{}
 	
 	for _, caseCondition := range expr.CaseConditions {
 		condExpr := ParseMongoConditionExpression(caseCondition.Condition)
 		
+		// Check if THEN is an expression or literal
+		var thenValue interface{}
+		if caseCondition.ThenExpr != nil && (caseCondition.ThenExpr.Type == "BINARY" || caseCondition.ThenExpr.Type == "FUNCTION") {
+			thenValue = BuildMongoExpressionFromAST(caseCondition.ThenExpr)
+		} else {
+			thenValue = ParseMongoValue(caseCondition.ThenExpr.Value)
+		}
+		
 		branch := bson.M{
 			"case": condExpr,
-			"then": caseCondition.ThenValue,
+			"then": thenValue,
 		}
 		branches = append(branches, branch)
 	}
@@ -310,54 +497,48 @@ func BuildMongoCaseWhenExpression(expr *pb.FieldExpression) interface{} {
 		return ""
 	}
 	
-	switchExpr := bson.M{
-		"branches": branches,
-	}
+	switchExpr := bson.M{"branches": branches}
 	
-	if expr.CaseElse != "" {
-		switchExpr["default"] = expr.CaseElse
+	if expr.CaseElse != nil {
+		// Check if ELSE is an expression or literal
+		if expr.CaseElse.Type == "BINARY" || expr.CaseElse.Type == "FUNCTION" {
+			switchExpr["default"] = BuildMongoExpressionFromAST(expr.CaseElse)
+		} else {
+			switchExpr["default"] = ParseMongoValue(expr.CaseElse.Value)
+		}
 	}
 	
 	return bson.M{"$switch": switchExpr}
 }
 
-// ParseMongoConditionExpression parses a condition string into MongoDB expression
-func ParseMongoConditionExpression(condition string) interface{} {
-	condition = strings.TrimSpace(condition)
-	
-	operators := []string{">=", "<=", "!=", "=", ">", "<"}
-	
-	for _, op := range operators {
-		if idx := strings.Index(condition, op); idx != -1 {
-			left := strings.TrimSpace(condition[:idx])
-			right := strings.TrimSpace(condition[idx+len(op):])
-			
-			leftValue := "$" + left
-			rightValue := ParseMongoValue(right)
-			
-			switch op {
-			case ">=":
-				return bson.M{"$gte": bson.A{leftValue, rightValue}}
-			case "<=":
-				return bson.M{"$lte": bson.A{leftValue, rightValue}}
-			case ">":
-				return bson.M{"$gt": bson.A{leftValue, rightValue}}
-			case "<":
-				return bson.M{"$lt": bson.A{leftValue, rightValue}}
-			case "=":
-				return bson.M{"$eq": bson.A{leftValue, rightValue}}
-			case "!=":
-				return bson.M{"$ne": bson.A{leftValue, rightValue}}
-			}
-		}
+func ParseMongoConditionExpression(cond *pb.QueryCondition) interface{} {
+	if cond == nil {
+		return true
 	}
 	
-	return true
+	leftValue := "$" + cond.FieldExpr.Value
+	rightValue := ParseMongoValue(cond.ValueExpr.Value)
+	
+	switch cond.Operator {
+	case ">=", "$gte":
+		return bson.M{"$gte": bson.A{leftValue, rightValue}}
+	case "<=", "$lte":
+		return bson.M{"$lte": bson.A{leftValue, rightValue}}
+	case ">", "$gt":
+		return bson.M{"$gt": bson.A{leftValue, rightValue}}
+	case "<", "$lt":
+		return bson.M{"$lt": bson.A{leftValue, rightValue}}
+	case "=", "$eq":
+		return bson.M{"$eq": bson.A{leftValue, rightValue}}
+	case "!=", "$ne":
+		return bson.M{"$ne": bson.A{leftValue, rightValue}}
+	default:
+		return bson.M{"$eq": bson.A{leftValue, rightValue}}
+	}
 }
 
-// BuildMongoProjectionExpression builds MongoDB expression for $project stage
-func BuildMongoProjectionExpression(expr *pb.FieldExpression) interface{} {
-	switch expr.ExpressionType {
+func BuildMongoProjectionExpression(expr *pb.Expression) interface{} {
+	switch expr.Type {
 	case "BINARY":
 		return BuildMongoBinaryExpression(expr)
 	case "FUNCTION":
@@ -373,33 +554,23 @@ func BuildMongoProjectionExpression(expr *pb.FieldExpression) interface{} {
 // WHERE EXPRESSION SUPPORT
 // ============================================================================
 
-// IsFieldExpression checks if a field string contains expression operators
 func IsFieldExpression(field string) bool {
-	// Check for binary operators with spaces
 	expressionOps := []string{" * ", " / ", " + ", " - ", " % "}
 	for _, op := range expressionOps {
 		if strings.Contains(field, op) {
 			return true
 		}
 	}
-	
-	// Check for functions
 	if strings.Contains(field, "(") && strings.Contains(field, ")") {
 		return true
 	}
-	
 	return false
 }
 
-// BuildExprCondition builds MongoDB $expr for expression-based WHERE conditions
 func BuildExprCondition(cond *pb.QueryCondition) interface{} {
-	// Parse the field expression
-	leftExpr := ParseFieldExpression(cond.Field)
+	leftExpr := ParseFieldExpression(cond.FieldExpr.Value)
+	rightValue := ParseMongoValue(cond.ValueExpr.Value)
 	
-	// Parse the value
-	rightValue := ParseMongoValue(cond.Value)
-	
-	// Build comparison operator
 	var comparisonOp string
 	switch cond.Operator {
 	case "$gt":
@@ -410,48 +581,18 @@ func BuildExprCondition(cond *pb.QueryCondition) interface{} {
 		comparisonOp = "$lt"
 	case "$lte":
 		comparisonOp = "$lte"
-	case "$eq":
-		comparisonOp = "$eq"
 	case "$ne":
 		comparisonOp = "$ne"
 	default:
 		comparisonOp = "$eq"
 	}
 	
-	// Return: { $comparisonOp: [leftExpr, rightValue] }
-	return bson.M{
-		comparisonOp: bson.A{leftExpr, rightValue},
-	}
+	return bson.M{comparisonOp: bson.A{leftExpr, rightValue}}
 }
 
-// NormalizeOperatorSpacing ensures operators have spaces around them
-func NormalizeOperatorSpacing(s string) string {
-	// Add spaces around operators (but preserve those in parentheses)
-	for _, op := range []string{"*", "/", "+", "-", "%"} {
-		// Don't add space if already has space
-		withSpace := " " + op + " "
-		noSpace := op
-		
-		// Replace operator without spaces with operator with spaces
-		s = strings.ReplaceAll(s, noSpace, withSpace)
-	}
-	
-	// Clean up multiple spaces
-	for strings.Contains(s, "  ") {
-		s = strings.ReplaceAll(s, "  ", " ")
-	}
-	
-	return strings.TrimSpace(s)
-}
-
-// ParseFieldExpression parses a field expression string into MongoDB format
 func ParseFieldExpression(fieldStr string) interface{} {
 	fieldStr = strings.TrimSpace(fieldStr)
 	
-	// Normalize spacing around operators
-	fieldStr = NormalizeOperatorSpacing(fieldStr)
-	
-	// Check for functions first
 	if strings.Contains(fieldStr, "(") && strings.Contains(fieldStr, ")") {
 		openIdx := strings.Index(fieldStr, "(")
 		if openIdx > 0 && IsLetter(rune(fieldStr[openIdx-1])) {
@@ -459,19 +600,10 @@ func ParseFieldExpression(fieldStr string) interface{} {
 		}
 	}
 	
-	// Check for parenthesized expressions
-	if strings.HasPrefix(fieldStr, "(") {
-		return ParseParenthesizedFieldExpression(fieldStr)
-	}
-	
-	// Check multiplication/division first (higher precedence)
 	for _, op := range []string{" * ", " / ", " % "} {
 		if idx := strings.Index(fieldStr, op); idx != -1 {
 			left := strings.TrimSpace(fieldStr[:idx])
 			right := strings.TrimSpace(fieldStr[idx+len(op):])
-			
-			leftExpr := ParseFieldExpression(left)
-			rightExpr := ParseFieldExpression(right)
 			
 			var mongoOp string
 			switch op {
@@ -483,18 +615,14 @@ func ParseFieldExpression(fieldStr string) interface{} {
 				mongoOp = "$mod"
 			}
 			
-			return bson.M{mongoOp: bson.A{leftExpr, rightExpr}}
+			return bson.M{mongoOp: bson.A{ParseFieldExpression(left), ParseFieldExpression(right)}}
 		}
 	}
 	
-	// Then check addition/subtraction
 	for _, op := range []string{" + ", " - "} {
 		if idx := strings.Index(fieldStr, op); idx != -1 {
 			left := strings.TrimSpace(fieldStr[:idx])
 			right := strings.TrimSpace(fieldStr[idx+len(op):])
-			
-			leftExpr := ParseFieldExpression(left)
-			rightExpr := ParseFieldExpression(right)
 			
 			var mongoOp string
 			switch op {
@@ -504,11 +632,10 @@ func ParseFieldExpression(fieldStr string) interface{} {
 				mongoOp = "$subtract"
 			}
 			
-			return bson.M{mongoOp: bson.A{leftExpr, rightExpr}}
+			return bson.M{mongoOp: bson.A{ParseFieldExpression(left), ParseFieldExpression(right)}}
 		}
 	}
 	
-	// Check if it's a number
 	val := ParseMongoValue(fieldStr)
 	if _, ok := val.(int); ok {
 		return val
@@ -517,68 +644,9 @@ func ParseFieldExpression(fieldStr string) interface{} {
 		return val
 	}
 	
-	// It's a field name - prefix with $
 	return "$" + fieldStr
 }
 
-// ParseParenthesizedFieldExpression handles (price - cost) * quantity
-func ParseParenthesizedFieldExpression(fieldStr string) interface{} {
-	depth := 0
-	closingIdx := -1
-	for i, ch := range fieldStr {
-		if ch == '(' {
-			depth++
-		} else if ch == ')' {
-			depth--
-			if depth == 0 {
-				closingIdx = i
-				break
-			}
-		}
-	}
-	
-	if closingIdx == -1 {
-		return "$" + fieldStr
-	}
-	
-	innerExpr := strings.TrimSpace(fieldStr[1:closingIdx])
-	remaining := strings.TrimSpace(fieldStr[closingIdx+1:])
-	
-	if remaining == "" {
-		return ParseFieldExpression(innerExpr)
-	}
-	
-	tokens := strings.Fields(remaining)
-	if len(tokens) < 2 {
-		return ParseFieldExpression(innerExpr)
-	}
-	
-	operator := tokens[0]
-	rightOperand := strings.Join(tokens[1:], " ")
-	
-	leftExpr := ParseFieldExpression(innerExpr)
-	rightExpr := ParseFieldExpression(rightOperand)
-	
-	var mongoOp string
-	switch operator {
-	case "*":
-		mongoOp = "$multiply"
-	case "/":
-		mongoOp = "$divide"
-	case "+":
-		mongoOp = "$add"
-	case "-":
-		mongoOp = "$subtract"
-	case "%":
-		mongoOp = "$mod"
-	default:
-		return leftExpr
-	}
-	
-	return bson.M{mongoOp: bson.A{leftExpr, rightExpr}}
-}
-
-// ParseFunctionExpressionInWhere parses function calls in WHERE clause
 func ParseFunctionExpressionInWhere(fieldStr string) interface{} {
 	openIdx := strings.Index(fieldStr, "(")
 	if openIdx == -1 {
@@ -634,7 +702,6 @@ func ParseFunctionExpressionInWhere(fieldStr string) interface{} {
 	return "$" + fieldStr
 }
 
-// IsLetter checks if a rune is a letter
 func IsLetter(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 }
@@ -643,276 +710,189 @@ func IsLetter(r rune) bool {
 // VALUE PARSING
 // ============================================================================
 
-// ParseMongoValue attempts to parse value as number, otherwise returns string
 func ParseMongoValue(value string) interface{} {
-	// Try float first to preserve decimals
 	var floatNum float64
 	if _, err := fmt.Sscanf(value, "%f", &floatNum); err == nil {
-		// If it has no decimal part, return as int
 		if floatNum == float64(int(floatNum)) {
 			return int(floatNum)
 		}
 		return floatNum
 	}
-	
 	return value
 }
 
 // ============================================================================
-// DCL OPERATIONS - BSON COMMAND BUILDERS
+// DCL OPERATIONS
 // ============================================================================
 
-// BuildCreateUserCommand builds BSON command for createUser
 func BuildCreateUserCommand(userName, password string) (bson.D, error) {
 	if userName == "" || password == "" {
 		return nil, fmt.Errorf("username and password required for CREATE_USER")
 	}
-
-	command := bson.D{
+	return bson.D{
 		{Key: "createUser", Value: userName},
 		{Key: "pwd", Value: password},
 		{Key: "roles", Value: bson.A{}},
-	}
-
-	return command, nil
+	}, nil
 }
 
-// BuildAlterUserCommand builds BSON command for updateUser
 func BuildAlterUserCommand(userName, password string) (bson.D, error) {
 	if userName == "" {
 		return nil, fmt.Errorf("username required for ALTER_USER")
 	}
-
-	command := bson.D{
+	return bson.D{
 		{Key: "updateUser", Value: userName},
 		{Key: "pwd", Value: password},
-	}
-
-	return command, nil
+	}, nil
 }
 
-// BuildDropUserCommand builds BSON command for dropUser
 func BuildDropUserCommand(userName string) (bson.D, error) {
 	if userName == "" {
 		return nil, fmt.Errorf("username required for DROP_USER")
 	}
-
-	command := bson.D{
-		{Key: "dropUser", Value: userName},
-	}
-
-	return command, nil
+	return bson.D{{Key: "dropUser", Value: userName}}, nil
 }
 
-// BuildCreateRoleCommand builds BSON command for createRole
 func BuildCreateRoleCommand(roleName string) (bson.D, error) {
 	if roleName == "" {
 		return nil, fmt.Errorf("role name required for CREATE_ROLE")
 	}
-
-	command := bson.D{
+	return bson.D{
 		{Key: "createRole", Value: roleName},
 		{Key: "privileges", Value: bson.A{}},
 		{Key: "roles", Value: bson.A{}},
-	}
-
-	return command, nil
+	}, nil
 }
 
-// BuildDropRoleCommand builds BSON command for dropRole
 func BuildDropRoleCommand(roleName string) (bson.D, error) {
 	if roleName == "" {
 		return nil, fmt.Errorf("role name required for DROP_ROLE")
 	}
-
-	command := bson.D{
-		{Key: "dropRole", Value: roleName},
-	}
-
-	return command, nil
+	return bson.D{{Key: "dropRole", Value: roleName}}, nil
 }
 
-// BuildGrantRoleCommand builds BSON command for grantRolesToUser
 func BuildGrantRoleCommand(userName, roleName string) (bson.D, error) {
 	if userName == "" || roleName == "" {
 		return nil, fmt.Errorf("username and role name required for GRANT_ROLE")
 	}
-
-	command := bson.D{
+	return bson.D{
 		{Key: "grantRolesToUser", Value: userName},
 		{Key: "roles", Value: bson.A{roleName}},
-	}
-
-	return command, nil
+	}, nil
 }
 
-// BuildRevokeRoleCommand builds BSON command for revokeRolesFromUser
 func BuildRevokeRoleCommand(userName, roleName string) (bson.D, error) {
 	if userName == "" || roleName == "" {
 		return nil, fmt.Errorf("username and role name required for REVOKE_ROLE")
 	}
-
-	command := bson.D{
+	return bson.D{
 		{Key: "revokeRolesFromUser", Value: userName},
 		{Key: "roles", Value: bson.A{roleName}},
-	}
-
-	return command, nil
+	}, nil
 }
 
-// BuildGrantCommand builds BSON command for grantPrivilegesToRole
 func BuildGrantCommand(userName string, permissions []string, target string, dbName string) (bson.D, error) {
 	if userName == "" || len(permissions) == 0 {
 		return nil, fmt.Errorf("username and permissions required for GRANT")
 	}
-
-	// Map SQL permissions to MongoDB actions
 	mongoPermissions := MapSQLToMongoPermissions(permissions)
-
-	// Build privileges array
 	privileges := bson.A{}
 	for _, perm := range mongoPermissions {
-		privilege := bson.D{
-			{Key: "resource", Value: bson.D{
-				{Key: "db", Value: dbName},
-				{Key: "collection", Value: target},
-			}},
+		privileges = append(privileges, bson.D{
+			{Key: "resource", Value: bson.D{{Key: "db", Value: dbName}, {Key: "collection", Value: target}}},
 			{Key: "actions", Value: bson.A{perm}},
-		}
-		privileges = append(privileges, privilege)
+		})
 	}
-
-	command := bson.D{
+	return bson.D{
 		{Key: "grantPrivilegesToRole", Value: userName},
 		{Key: "privileges", Value: privileges},
-	}
-
-	return command, nil
+	}, nil
 }
 
-// BuildRevokeCommand builds BSON command for revokePrivilegesFromRole
 func BuildRevokeCommand(userName string, permissions []string, target string, dbName string) (bson.D, error) {
 	if userName == "" || len(permissions) == 0 {
 		return nil, fmt.Errorf("username and permissions required for REVOKE")
 	}
-
-	// Map SQL permissions to MongoDB actions
 	mongoPermissions := MapSQLToMongoPermissions(permissions)
-
-	// Build privileges array
 	privileges := bson.A{}
 	for _, perm := range mongoPermissions {
-		privilege := bson.D{
-			{Key: "resource", Value: bson.D{
-				{Key: "db", Value: dbName},
-				{Key: "collection", Value: target},
-			}},
+		privileges = append(privileges, bson.D{
+			{Key: "resource", Value: bson.D{{Key: "db", Value: dbName}, {Key: "collection", Value: target}}},
 			{Key: "actions", Value: bson.A{perm}},
-		}
-		privileges = append(privileges, privilege)
+		})
 	}
-
-	command := bson.D{
+	return bson.D{
 		{Key: "revokePrivilegesFromRole", Value: userName},
 		{Key: "privileges", Value: privileges},
-	}
-
-	return command, nil
+	}, nil
 }
 
-// MapSQLToMongoPermissions converts SQL permissions to MongoDB actions
 func MapSQLToMongoPermissions(sqlPermissions []string) []string {
 	permissionMap := map[string]string{
-		"SELECT": "find",
-		"INSERT": "insert",
-		"UPDATE": "update",
-		"DELETE": "remove",
-		"ALL":    "dbAdmin", // MongoDB role for full access
+		"SELECT": "find", "INSERT": "insert", "UPDATE": "update", "DELETE": "remove", "ALL": "dbAdmin",
 	}
-	
 	var mongoPerms []string
 	for _, sqlPerm := range sqlPermissions {
 		if mongoPerm, exists := permissionMap[strings.ToUpper(sqlPerm)]; exists {
 			mongoPerms = append(mongoPerms, mongoPerm)
 		} else {
-			// If no mapping found, use original (already in MongoDB format)
 			mongoPerms = append(mongoPerms, sqlPerm)
 		}
 	}
-	
 	return mongoPerms
 }
 
 // ============================================================================
-// DDL OPERATIONS - BSON COMMAND BUILDERS
+// DDL OPERATIONS
 // ============================================================================
 
-// BuildRenameCollectionCommand builds BSON command for renameCollection
 func BuildRenameCollectionCommand(dbName, oldName, newName string) (bson.D, error) {
 	if newName == "" {
 		return nil, fmt.Errorf("no new name specified for RENAME COLLECTION")
 	}
-
-	command := bson.D{
+	return bson.D{
 		{Key: "renameCollection", Value: dbName + "." + oldName},
 		{Key: "to", Value: dbName + "." + newName},
-	}
-
-	return command, nil
+	}, nil
 }
 
-// BuildCreateViewCommand builds BSON command for create view
 func BuildCreateViewCommand(viewName, collectionName string) (bson.D, error) {
 	if viewName == "" {
 		return nil, fmt.Errorf("view name required for CREATE VIEW")
 	}
-
 	if collectionName == "" {
 		return nil, fmt.Errorf("collection name required for CREATE VIEW")
 	}
-
-	// MongoDB views are based on aggregation pipelines
-	command := bson.D{
+	return bson.D{
 		{Key: "create", Value: viewName},
 		{Key: "viewOn", Value: collectionName},
-		{Key: "pipeline", Value: bson.A{}}, // Empty pipeline for now
-	}
-
-	return command, nil
+		{Key: "pipeline", Value: bson.A{}},
+	}, nil
 }
 
-// ExtractCollectionNameFromQuery extracts collection name from ViewQuery
 func ExtractCollectionNameFromQuery(viewQuery string) (string, error) {
 	if viewQuery == "" {
 		return "", fmt.Errorf("viewQuery is empty")
 	}
-
-	// Parse "SELECT * FROM users WHERE..." to extract "users"
 	viewQueryUpper := strings.ToUpper(viewQuery)
 	if !strings.Contains(viewQueryUpper, "FROM") {
 		return "", fmt.Errorf("ViewQuery missing FROM clause: %s", viewQuery)
 	}
-	
 	parts := strings.Split(viewQueryUpper, "FROM")
 	if len(parts) < 2 {
 		return "", fmt.Errorf("invalid ViewQuery format: %s", viewQuery)
 	}
-	
 	words := strings.Fields(strings.TrimSpace(parts[1]))
 	if len(words) == 0 {
 		return "", fmt.Errorf("no collection specified after FROM: %s", viewQuery)
 	}
-	
-	collectionName := strings.ToLower(words[0])
-	
-	return collectionName, nil
+	return strings.ToLower(words[0]), nil
 }
 
 // ============================================================================
-// DQL OPERATIONS - AGGREGATION PIPELINE BUILDERS
+// DQL OPERATIONS
 // ============================================================================
 
-// BuildMongoDBJoinPipeline constructs MongoDB aggregation pipeline for JOINs
 func BuildMongoDBJoinPipeline(query *pb.DocumentQuery) []bson.M {
 	pipeline := []bson.M{}
 
@@ -920,62 +900,41 @@ func BuildMongoDBJoinPipeline(query *pb.DocumentQuery) []bson.M {
 		lookupStage := bson.M{
 			"$lookup": bson.M{
 				"from":         join.Table,
-				"localField":   ExtractFieldName(join.LeftField),
-				"foreignField": ExtractFieldName(join.RightField),
+				"localField":   ExtractFieldName(join.LeftExpr.Value),
+				"foreignField": ExtractFieldName(join.RightExpr.Value),
 				"as":           join.Table + "_joined",
 			},
 		}
 		pipeline = append(pipeline, lookupStage)
 
 		if strings.ToLower(join.JoinType) == "inner" || strings.ToLower(join.JoinType) == "inner_join" {
-			unwindStage := bson.M{
-				"$unwind": bson.M{
-					"path": "$" + join.Table + "_joined",
-				},
-			}
-			pipeline = append(pipeline, unwindStage)
+			pipeline = append(pipeline, bson.M{"$unwind": bson.M{"path": "$" + join.Table + "_joined"}})
 		} else {
-			unwindStage := bson.M{
-				"$unwind": bson.M{
-					"path":                       "$" + join.Table + "_joined",
-					"preserveNullAndEmptyArrays": true,
-				},
-			}
-			pipeline = append(pipeline, unwindStage)
+			pipeline = append(pipeline, bson.M{"$unwind": bson.M{"path": "$" + join.Table + "_joined", "preserveNullAndEmptyArrays": true}})
 		}
 	}
 
 	if len(query.Conditions) > 0 {
-		matchStage := BuildMongoDBMatchStage(query.Conditions)
-		pipeline = append(pipeline, matchStage)
+		pipeline = append(pipeline, BuildMongoDBMatchStage(query.Conditions))
 	}
-
 	if len(query.OrderBy) > 0 {
-		sortStage := BuildMongoDBSortStage(query.OrderBy)
-		pipeline = append(pipeline, sortStage)
+		pipeline = append(pipeline, BuildMongoDBSortStage(query.OrderBy))
 	}
-
 	if query.Limit > 0 {
 		pipeline = append(pipeline, bson.M{"$limit": query.Limit})
 	}
-
 	if query.Skip > 0 {
 		pipeline = append(pipeline, bson.M{"$skip": query.Skip})
 	}
 
-	// Add $project stage for column selection
 	if len(query.Columns) > 0 {
 		projection := bson.M{}
 		for _, col := range query.Columns {
-			// Convert "User.name" → "name: 1" or "Project.title" → "projects_joined.title: 1"
-			parts := strings.Split(col, ".")
+			parts := strings.Split(col.Value, ".")
 			if len(parts) == 2 {
-				// For joined collections, use the joined array name
-				// For main collection, use field directly
 				projection[parts[1]] = 1
 			}
 		}
-
 		if len(projection) > 0 {
 			pipeline = append(pipeline, bson.M{"$project": projection})
 		}
@@ -984,104 +943,60 @@ func BuildMongoDBJoinPipeline(query *pb.DocumentQuery) []bson.M {
 	return pipeline
 }
 
-// BuildMongoDBAggregatePipeline constructs MongoDB aggregation pipeline for aggregates
 func BuildMongoDBAggregatePipeline(query *pb.DocumentQuery) []bson.M {
 	pipeline := []bson.M{}
 
-	// STEP 1: $match - Apply WHERE conditions FIRST
 	if len(query.Conditions) > 0 {
-		matchStage := BuildMongoDBMatchStage(query.Conditions)
-		pipeline = append(pipeline, matchStage)
+		pipeline = append(pipeline, BuildMongoDBMatchStage(query.Conditions))
 	}
-
-	// STEP 2: For non-grouped queries with ORDER BY, apply it before LIMIT
 	if len(query.GroupBy) == 0 && len(query.OrderBy) > 0 {
-		sortStage := BuildMongoDBSortStage(query.OrderBy)
-		pipeline = append(pipeline, sortStage)
+		pipeline = append(pipeline, BuildMongoDBSortStage(query.OrderBy))
 	}
-
-	// STEP 3: Apply SKIP before aggregation (to limit source data)
 	if query.Skip > 0 {
 		pipeline = append(pipeline, bson.M{"$skip": query.Skip})
 	}
-
-	// STEP 4: Apply LIMIT before aggregation (to limit source data)
 	if query.Limit > 0 {
 		pipeline = append(pipeline, bson.M{"$limit": query.Limit})
 	}
 
-	// STEP 5: Perform aggregation
 	if query.Aggregate != nil {
-		groupStage := BuildMongoDBGroupStage(query)
-		pipeline = append(pipeline, groupStage)
-
-		// STEP 5b: For DISTINCT aggregations, add post-processing
-		if query.Distinct && query.Aggregate.Field != "" {
+		pipeline = append(pipeline, BuildMongoDBGroupStage(query))
+		
+		aggField := query.Aggregate.FieldExpr.Value
+		if query.Distinct && aggField != "" {
 			aggFunc := strings.ToLower(query.Aggregate.Function)
-
 			if aggFunc == "count" {
-				// COUNT DISTINCT: Count the size of the unique values array
-				pipeline = append(pipeline, bson.M{
-					"$project": bson.M{
-						"_id":    "$_id",
-						"result": bson.M{"$size": "$result"},
-					},
-				})
+				pipeline = append(pipeline, bson.M{"$project": bson.M{"_id": "$_id", "result": bson.M{"$size": "$result"}}})
 			} else if aggFunc == "sum" {
-				// SUM DISTINCT: Sum the unique values array
-				pipeline = append(pipeline, bson.M{
-					"$project": bson.M{
-						"_id":    "$_id",
-						"result": bson.M{"$sum": "$result"},
-					},
-				})
+				pipeline = append(pipeline, bson.M{"$project": bson.M{"_id": "$_id", "result": bson.M{"$sum": "$result"}}})
 			} else if aggFunc == "avg" {
-				// AVG DISTINCT: Average the unique values array
-				pipeline = append(pipeline, bson.M{
-					"$project": bson.M{
-						"_id":    "$_id",
-						"result": bson.M{"$avg": "$result"},
-					},
-				})
+				pipeline = append(pipeline, bson.M{"$project": bson.M{"_id": "$_id", "result": bson.M{"$avg": "$result"}}})
 			}
 		}
 
-		// STEP 6: Apply HAVING after grouping
 		if len(query.Having) > 0 {
-			havingStage := BuildMongoDBHavingStage(query.Having)
-			pipeline = append(pipeline, havingStage)
+			pipeline = append(pipeline, BuildMongoDBHavingStage(query.Having))
 		}
-
-		// STEP 7: Apply ORDER BY after grouping (for GROUP BY queries)
 		if len(query.GroupBy) > 0 && len(query.OrderBy) > 0 {
-			sortStage := BuildMongoDBSortStage(query.OrderBy)
-			pipeline = append(pipeline, sortStage)
+			pipeline = append(pipeline, BuildMongoDBSortStage(query.OrderBy))
 		}
 	} else {
-		// Simple COUNT with no GROUP BY
-		groupStage := bson.M{
-			"$group": bson.M{
-				"_id":    nil,
-				"result": bson.M{"$sum": 1},
-			},
-		}
-		pipeline = append(pipeline, groupStage)
+		pipeline = append(pipeline, bson.M{"$group": bson.M{"_id": nil, "result": bson.M{"$sum": 1}}})
 	}
 
 	return pipeline
 }
 
-// BuildMongoDBGroupStage constructs $group stage for aggregations
 func BuildMongoDBGroupStage(query *pb.DocumentQuery) bson.M {
 	groupID := interface{}(nil)
 
 	if len(query.GroupBy) > 0 {
 		if len(query.GroupBy) == 1 {
-			groupID = "$" + query.GroupBy[0]
+			groupID = "$" + query.GroupBy[0].Value
 		} else {
 			groupFields := bson.M{}
 			for _, field := range query.GroupBy {
-				groupFields[field] = "$" + field
+				groupFields[field.Value] = "$" + field.Value
 			}
 			groupID = groupFields
 		}
@@ -1089,64 +1004,46 @@ func BuildMongoDBGroupStage(query *pb.DocumentQuery) bson.M {
 
 	var aggExpr bson.M
 	aggFunc := strings.ToLower(query.Aggregate.Function)
+	aggField := getAggField(query.Aggregate)  // ✅ Uses nil-safe helper
 
-	// Handle DISTINCT aggregations
-	if query.Distinct && query.Aggregate.Field != "" {
-		// For DISTINCT, we need to collect unique values first
+	if query.Distinct && aggField != "" {
 		switch aggFunc {
-		case "count":
-			// COUNT DISTINCT: Use $addToSet to collect unique values
-			aggExpr = bson.M{"$addToSet": "$" + query.Aggregate.Field}
-		case "sum", "avg":
-			// SUM/AVG DISTINCT: Use $addToSet to collect unique values
-			aggExpr = bson.M{"$addToSet": "$" + query.Aggregate.Field}
+		case "count", "sum", "avg":
+			aggExpr = bson.M{"$addToSet": "$" + aggField}
 		default:
-			// MIN/MAX don't need DISTINCT (already return single value)
-			aggExpr = bson.M{"$" + aggFunc: "$" + query.Aggregate.Field}
+			aggExpr = bson.M{"$" + aggFunc: "$" + aggField}
 		}
 	} else {
-		// Regular aggregations (no DISTINCT)
 		switch aggFunc {
 		case "count":
 			aggExpr = bson.M{"$sum": 1}
 		case "sum":
-			aggExpr = bson.M{"$sum": "$" + query.Aggregate.Field}
+			aggExpr = bson.M{"$sum": "$" + aggField}
 		case "avg":
-			aggExpr = bson.M{"$avg": "$" + query.Aggregate.Field}
+			aggExpr = bson.M{"$avg": "$" + aggField}
 		case "min":
-			aggExpr = bson.M{"$min": "$" + query.Aggregate.Field}
+			aggExpr = bson.M{"$min": "$" + aggField}
 		case "max":
-			aggExpr = bson.M{"$max": "$" + query.Aggregate.Field}
+			aggExpr = bson.M{"$max": "$" + aggField}
 		default:
 			aggExpr = bson.M{"$sum": 1}
 		}
 	}
 
-	groupStage := bson.M{
-		"$group": bson.M{
-			"_id":    groupID,
-			"result": aggExpr,
-		},
-	}
-
-	return groupStage
+	return bson.M{"$group": bson.M{"_id": groupID, "result": aggExpr}}
 }
 
-// BuildMongoDBHavingStage constructs $match stage for HAVING clause
 func BuildMongoDBHavingStage(having []*pb.QueryCondition) bson.M {
 	matchConditions := bson.M{}
-
 	for _, cond := range having {
-		// HAVING uses "result" field from aggregation
 		field := "result"
-		operator := cond.Operator
-
-		var value interface{} = cond.Value
-		if intVal, err := strconv.Atoi(cond.Value); err == nil {
+		valueStr := cond.ValueExpr.Value
+		var value interface{} = valueStr
+		if intVal, err := strconv.Atoi(valueStr); err == nil {
 			value = intVal
 		}
 
-		switch operator {
+		switch cond.Operator {
 		case "$gt", ">":
 			matchConditions[field] = bson.M{"$gt": value}
 		case "$gte", ">=":
@@ -1155,62 +1052,48 @@ func BuildMongoDBHavingStage(having []*pb.QueryCondition) bson.M {
 			matchConditions[field] = bson.M{"$lt": value}
 		case "$lte", "<=":
 			matchConditions[field] = bson.M{"$lte": value}
-		case "$eq", "=":
-			matchConditions[field] = value
 		case "$ne", "!=":
 			matchConditions[field] = bson.M{"$ne": value}
 		default:
 			matchConditions[field] = value
 		}
 	}
-
 	return bson.M{"$match": matchConditions}
 }
 
-// BuildWindowFunctionPipeline constructs $setWindowFields pipeline
 func BuildWindowFunctionPipeline(query *pb.DocumentQuery) ([]bson.M, error) {
 	pipeline := []bson.M{}
-
 	if len(query.Conditions) > 0 {
-		matchStage := BuildMongoDBMatchStage(query.Conditions)
-		pipeline = append(pipeline, matchStage)
+		pipeline = append(pipeline, BuildMongoDBMatchStage(query.Conditions))
 	}
-
-	if len(query.WindowFunctions) > 0 {
-		for _, wf := range query.WindowFunctions {
-			windowStage, err := BuildWindowStage(wf)
-			if err != nil {
-				return nil, err
-			}
-			pipeline = append(pipeline, windowStage)
+	for _, wf := range query.WindowFunctions {
+		windowStage, err := BuildWindowStage(wf)
+		if err != nil {
+			return nil, err
 		}
+		pipeline = append(pipeline, windowStage)
 	}
-
 	if query.Limit > 0 {
 		pipeline = append(pipeline, bson.M{"$limit": query.Limit})
 	}
-
 	return pipeline, nil
 }
 
-// BuildWindowStage constructs $setWindowFields stage for a window function
 func BuildWindowStage(wf *pb.WindowClause) (bson.M, error) {
 	windowSpec := bson.M{}
 
-	// Add partitionBy if specified
 	if len(wf.PartitionBy) > 0 {
 		if len(wf.PartitionBy) == 1 {
-			windowSpec["partitionBy"] = "$" + wf.PartitionBy[0]
+			windowSpec["partitionBy"] = "$" + wf.PartitionBy[0].Value
 		} else {
 			partitionFields := bson.A{}
 			for _, field := range wf.PartitionBy {
-				partitionFields = append(partitionFields, "$"+field)
+				partitionFields = append(partitionFields, "$"+field.Value)
 			}
 			windowSpec["partitionBy"] = partitionFields
 		}
 	}
 
-	// Add sortBy if specified
 	if len(wf.OrderBy) > 0 {
 		sortFields := bson.M{}
 		for _, ob := range wf.OrderBy {
@@ -1218,12 +1101,11 @@ func BuildWindowStage(wf *pb.WindowClause) (bson.M, error) {
 			if direction == 0 {
 				direction = 1
 			}
-			sortFields[ob.Field] = direction
+			sortFields[ob.FieldExpr.Value] = direction
 		}
 		windowSpec["sortBy"] = sortFields
 	}
 
-	// Build window function expression
 	var windowExpr bson.M
 	function := strings.ToLower(wf.Function)
 
@@ -1239,56 +1121,29 @@ func BuildWindowStage(wf *pb.WindowClause) (bson.M, error) {
 		if offset == 0 {
 			offset = -1
 		}
-		windowExpr = bson.M{wf.Alias: bson.M{"$shift": bson.M{
-			"output": "$" + wf.Alias,
-			"by":     offset,
-		}}}
+		windowExpr = bson.M{wf.Alias: bson.M{"$shift": bson.M{"output": "$" + wf.Alias, "by": offset}}}
 	case "ntile":
-		buckets := int(wf.Buckets)
-		if buckets == 0 {
-			buckets = 4
-		}
 		windowExpr = bson.M{wf.Alias: bson.M{"$rank": bson.M{}}}
 	default:
 		return nil, fmt.Errorf("unsupported window function: %s", function)
 	}
 
 	windowSpec["output"] = windowExpr
-
 	return bson.M{"$setWindowFields": windowSpec}, nil
 }
 
-// BuildSetOperationPipeline constructs pipeline for set operations
 func BuildSetOperationPipeline(query *pb.DocumentQuery) ([]bson.M, error) {
 	pipeline := []bson.M{}
-
-	// For INTERSECT and EXCEPT, conditions are already combined by translator
-	// Just add the match stage
 	if len(query.Conditions) > 0 {
-		matchStage := BuildMongoDBMatchStage(query.Conditions)
-		pipeline = append(pipeline, matchStage)
+		pipeline = append(pipeline, BuildMongoDBMatchStage(query.Conditions))
 	}
 
 	operation := strings.ToLower(query.Operation)
-
 	switch operation {
 	case "unionwith":
-		// UNION uses $unionWith
-		unionStage := bson.M{
-			"$unionWith": bson.M{
-				"coll": query.Collection,
-			},
-		}
-		pipeline = append(pipeline, unionStage)
-
-	case "intersect":
+		pipeline = append(pipeline, bson.M{"$unionWith": bson.M{"coll": query.Collection}})
+	case "intersect", "setdifference":
 		// Already handled by combining conditions in translator
-		// Documents must match ALL conditions
-
-	case "setdifference":
-		// Already handled by negating second query conditions in translator
-		// Documents match first conditions but NOT second conditions
-
 	default:
 		return nil, fmt.Errorf("unsupported set operation: %s", operation)
 	}
@@ -1296,62 +1151,26 @@ func BuildSetOperationPipeline(query *pb.DocumentQuery) ([]bson.M, error) {
 	if query.Limit > 0 {
 		pipeline = append(pipeline, bson.M{"$limit": query.Limit})
 	}
-
 	return pipeline, nil
 }
 
-// BuildMongoDBMatchStage constructs $match stage for WHERE conditions
 func BuildMongoDBMatchStage(conditions []*pb.QueryCondition) bson.M {
-	matchConditions := bson.M{}
-
-	for _, cond := range conditions {
-		field := ExtractFieldName(cond.Field)
-		operator := cond.Operator
-
-		// Parse value as int if possible
-		var value interface{} = cond.Value
-		if intVal, err := strconv.Atoi(cond.Value); err == nil {
-			value = intVal
-		}
-
-		switch operator {
-		case "$eq", "=":
-			matchConditions[field] = value
-		case "$ne", "!=":
-			matchConditions[field] = bson.M{"$ne": value}
-		case "$gt", ">":
-			matchConditions[field] = bson.M{"$gt": value}
-		case "$lt", "<":
-			matchConditions[field] = bson.M{"$lt": value}
-		case "$gte", ">=":
-			matchConditions[field] = bson.M{"$gte": value}
-		case "$lte", "<=":
-			matchConditions[field] = bson.M{"$lte": value}
-		default:
-			matchConditions[field] = value
-		}
-	}
-
-	return bson.M{"$match": matchConditions}
+	return bson.M{"$match": BuildMongoFilter(conditions)}
 }
 
-// BuildMongoDBSortStage constructs $sort stage for ORDER BY
 func BuildMongoDBSortStage(orderBy []*pb.OrderByClause) bson.M {
 	sortFields := bson.M{}
-
 	for _, ob := range orderBy {
-		field := ExtractFieldName(ob.Field)
+		field := ExtractFieldName(ob.FieldExpr.Value)
 		direction := 1
 		if ob.Direction == "-1" || strings.ToUpper(ob.Direction) == "DESC" {
 			direction = -1
 		}
 		sortFields[field] = direction
 	}
-
 	return bson.M{"$sort": sortFields}
 }
 
-// ExtractFieldName extracts field name from table.field format
 func ExtractFieldName(field string) string {
 	parts := strings.Split(field, ".")
 	if len(parts) == 2 {
@@ -1361,60 +1180,30 @@ func ExtractFieldName(field string) string {
 }
 
 // ============================================================================
-// TCL OPERATIONS - TRANSACTION BUILDERS
+// TCL OPERATIONS
 // ============================================================================
 
-// BuildTransactionOptions builds MongoDB transaction options with read/write concerns
 func BuildTransactionOptions() *options.TransactionOptions {
-	txnOpts := options.Transaction().
+	return options.Transaction().
 		SetReadConcern(readconcern.Majority()).
 		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
-	
-	return txnOpts
 }
 
-// IsUnsupportedTCLOperation checks if the TCL operation is unsupported in MongoDB
 func IsUnsupportedTCLOperation(operation string) bool {
 	unsupportedOps := map[string]bool{
-		"savepoint":               true,
-		"rollback_to":             true,
-		"rollback_to_savepoint":   true,
-		"release_savepoint":       true,
+		"savepoint": true, "rollback_to": true, "rollback_to_savepoint": true, "release_savepoint": true,
 	}
-	
 	return unsupportedOps[strings.ToLower(operation)]
 }
 
-// GetUnsupportedOperationError returns an error message for unsupported MongoDB TCL operations
 func GetUnsupportedOperationError(operation string) error {
-	operation = strings.ToLower(operation)
-	
-	switch operation {
+	switch strings.ToLower(operation) {
 	case "savepoint":
-		return fmt.Errorf(
-			"SAVEPOINT not supported in MongoDB.\n\n" +
-			"MongoDB uses all-or-nothing transactions without partial rollback capability.\n\n" +
-			"Alternatives:\n" +
-			"  1. Break workflow into smaller, independent transactions\n" +
-			"  2. Use application-level state management\n" +
-			"  3. Implement document versioning for rollback capability\n" +
-			"  4. Consider PostgreSQL or MySQL if savepoints are required",
-		)
-	
+		return fmt.Errorf("SAVEPOINT not supported in MongoDB")
 	case "rollback_to", "rollback_to_savepoint":
-		return fmt.Errorf(
-			"ROLLBACK TO SAVEPOINT not supported in MongoDB.\n\n" +
-			"MongoDB transactions can only be fully committed or fully aborted.\n\n" +
-			"Use ROLLBACK (or ABORT) to undo the entire transaction.",
-		)
-	
+		return fmt.Errorf("ROLLBACK TO SAVEPOINT not supported in MongoDB")
 	case "release_savepoint":
-		return fmt.Errorf(
-			"RELEASE SAVEPOINT not supported in MongoDB.\n\n" +
-			"MongoDB does not support savepoints, so there are no savepoints to release.\n\n" +
-			"This operation is a no-op in MongoDB context.",
-		)
-	
+		return fmt.Errorf("RELEASE SAVEPOINT not supported in MongoDB")
 	default:
 		return fmt.Errorf("unsupported TCL operation: %s", operation)
 	}

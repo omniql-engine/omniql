@@ -1,4 +1,4 @@
-package ast
+package lexer
 
 // TokenType represents the category of a token
 type TokenType int

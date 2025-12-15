@@ -10,27 +10,122 @@ import (
 	"github.com/jinzhu/inflection"
 )
 
-// TranslatePostgreSQL converts OQL Query to PostgreSQL RelationalQuery
-// Supports all 69 operations: CRUD (7) + DDL (14) + DQL (31) + TCL (8) + DCL (9)
+// ============================================================================
+// EXPRESSION MAPPING (100% TrueAST)
+// ============================================================================
+
+// mapExpression converts models.Expression to pb.Expression (100% TrueAST)
+func mapExpression(expr *models.Expression) *pb.Expression {
+	if expr == nil {
+		return nil
+	}
+	
+	return &pb.Expression{
+		Type:           expr.Type,
+		Value:          expr.Value,
+		Left:           mapExpression(expr.Left),
+		Operator:       expr.Operator,
+		Right:          mapExpression(expr.Right),
+		FunctionName:   expr.FunctionName,
+		FunctionArgs:   mapExpressions(expr.FunctionArgs),
+		CaseConditions: mapCaseConditions(expr.CaseConditions),
+		CaseElse:       mapExpression(expr.CaseElse),
+	}
+}
+
+// mapExpressions converts slice of expressions
+func mapExpressions(exprs []*models.Expression) []*pb.Expression {
+	if len(exprs) == 0 {
+		return nil
+	}
+	var result []*pb.Expression
+	for _, expr := range exprs {
+		result = append(result, mapExpression(expr))
+	}
+	return result
+}
+
+// mapCaseConditions converts case conditions (100% TrueAST)
+func mapCaseConditions(conditions []*models.CaseCondition) []*pb.CaseCondition {
+	if len(conditions) == 0 {
+		return nil
+	}
+	var result []*pb.CaseCondition
+	for _, cc := range conditions {
+		result = append(result, &pb.CaseCondition{
+			Condition: mapCondition(cc.Condition),
+			ThenExpr:  mapExpression(cc.ThenExpr),
+		})
+	}
+	return result
+}
+
+// mapCondition converts single condition (100% TrueAST)
+func mapCondition(cond *models.Condition) *pb.QueryCondition {
+	if cond == nil {
+		return nil
+	}
+	return &pb.QueryCondition{
+		FieldExpr:  mapExpression(cond.FieldExpr),
+		Operator:   cond.Operator,
+		ValueExpr:  mapExpression(cond.ValueExpr),
+		Value2Expr: mapExpression(cond.Value2Expr),
+		ValuesExpr: mapExpressions(cond.ValuesExpr),
+		Logic:      cond.Logic,
+		Nested:     mapConditions(cond.Nested),
+	}
+}
+
+// mapConditions converts slice of conditions (100% TrueAST)
+func mapConditions(conditions []models.Condition) []*pb.QueryCondition {
+	if len(conditions) == 0 {
+		return nil
+	}
+	var result []*pb.QueryCondition
+	for _, cond := range conditions {
+		result = append(result, mapCondition(&cond))
+	}
+	return result
+}
+
+// mapOrderByClauses converts order by clauses
+func mapOrderByClauses(orderBy []models.OrderBy) []*pb.OrderByClause {
+	if len(orderBy) == 0 {
+		return nil
+	}
+	var result []*pb.OrderByClause
+	for _, ob := range orderBy {
+		result = append(result, &pb.OrderByClause{
+			FieldExpr: mapExpression(ob.FieldExpr),
+			Direction: string(ob.Direction),
+		})
+	}
+	return result
+}
+
+// ============================================================================
+// MAIN TRANSLATOR
+// ============================================================================
+
+// TranslatePostgreSQL converts OQL Query to PostgreSQL RelationalQuery (100% TrueAST)
 func TranslatePostgreSQL(query *models.Query, tenantID string) (*pb.RelationalQuery, error) {
 	operation := mapping.OperationMap["PostgreSQL"][query.Operation]
 	table := getPostgreSQLTableName(query.Entity, query.Operation)
-	conditions := mapPostgreSQLConditions(query.Conditions)
-	fields := mapPostgreSQLFields(query.Fields)
+	conditions := mapConditions(query.Conditions)
+	fields := mapFields(query.Fields)
 	
 	// DQL: Map existing fields
-	joins := mapPostgreSQLJoins(query.Joins)
-	aggregate := mapPostgreSQLAggregate(query.Aggregate)
-	orderBy := mapPostgreSQLOrderBy(query.OrderBy)
-	having := mapPostgreSQLConditions(query.Having)
+	joins := mapJoins(query.Joins)
+	aggregate := mapAggregate(query.Aggregate)
+	orderBy := mapOrderByClauses(query.OrderBy)
+	having := mapConditions(query.Having)
 	
 	// DQL: Map new advanced fields
-	windowFunctions := mapPostgreSQLWindowFunctions(query.WindowFunctions)
-	cte := mapPostgreSQLCTE(query.CTE)
-	subquery := mapPostgreSQLSubquery(query.Subquery)
+	windowFunctions := mapWindowFunctions(query.WindowFunctions)
+	cte := mapCTE(query.CTE, tenantID)
+	subquery := mapSubquery(query.Subquery, tenantID)
 	pattern := query.Pattern
-	caseWhen := mapPostgreSQLCaseStatement(query.CaseStatement)
-	setOperation, err := mapPostgreSQLSetOperation(query.SetOperation, tenantID)
+	setOperation, err := mapSetOperation(query.SetOperation, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -59,21 +154,18 @@ func TranslatePostgreSQL(query *models.Query, tenantID string) (*pb.RelationalQu
 		userName = query.Permission.UserName
 		password = query.Permission.Password
 		userRoles = query.Permission.Roles
-	
 	}
 	
 	// CRUD: Map UPSERT and BULK INSERT
-	upsert := mapPostgreSQLUpsert(query.Upsert)
-	bulkData := mapPostgreSQLBulkData(query.BulkData)
+	upsert := mapUpsert(query.Upsert)
+	bulkData := mapBulkData(query.BulkData)
 	
 	// DDL: Map view and database fields
 	viewName := query.ViewName
-	viewQuery := query.ViewQuery
+	viewQuery := mapViewQuery(query.ViewQuery, tenantID)
 	databaseName := query.DatabaseName
-	// Apply same pluralization to NewName (for RENAME TABLE)
 	newName := query.NewName
 	if query.NewName != "" && query.Operation == "RENAME TABLE" {
-		// Apply same table naming rule as the source table
 		lookupOp := strings.ToUpper(strings.ReplaceAll(query.Operation, "_", " "))
 		rule := mapping.TableNamingRules[lookupOp]
 		if rule == "plural" {
@@ -92,21 +184,20 @@ func TranslatePostgreSQL(query *models.Query, tenantID string) (*pb.RelationalQu
 		Offset:     int32(query.Offset),
 		Distinct:   query.Distinct,
 		
-		// GROUP 3: DQL (existing)
-		Joins:     joins,
-		Columns:   query.Columns,
-		SelectColumns:  mapPostgreSQLSelectColumns(query.SelectColumns), 
-		Aggregate: aggregate,
-		OrderBy:   orderBy,
-		GroupBy:   query.GroupBy,
-		Having:    having,
+		// GROUP 3: DQL
+		Joins:         joins,
+		Columns:       mapExpressions(query.Columns),
+		SelectColumns: mapSelectColumns(query.SelectColumns),
+		Aggregate:     aggregate,
+		OrderBy:       orderBy,
+		GroupBy:       mapExpressions(query.GroupBy),
+		Having:        having,
 		
-		// GROUP 3: DQL (new advanced features)
+		// GROUP 3: DQL (advanced)
 		WindowFunctions: windowFunctions,
 		Cte:             cte,
 		Subquery:        subquery,
 		Pattern:         pattern,
-		CaseWhen:        caseWhen,
 		SetOperation:    setOperation,
 		
 		// GROUP 4: TCL
@@ -131,356 +222,237 @@ func TranslatePostgreSQL(query *models.Query, tenantID string) (*pb.RelationalQu
 		ViewQuery:    viewQuery,
 		DatabaseName: databaseName,
 		NewName:      newName,
+		AlterAction:  query.AlterAction,
 	}
 	
-	// ✨ NEW: Populate SQL field for OmniQL users
 	result.Sql = buildPostgreSQLString(result)
 	
 	return result, nil
 }
 
 // ============================================================================
-// CRUD & DDL (Existing)
+// FIELD MAPPING (100% TrueAST)
 // ============================================================================
 
-func mapPostgreSQLConditions(conditions []models.Condition) []*pb.QueryCondition {
-	var pbConditions []*pb.QueryCondition
-	for _, cond := range conditions {
-		pbConditions = append(pbConditions, &pb.QueryCondition{
-			Field:    convertPostgreSQLConditionField(cond.Field),
-			Operator: cond.Operator,
-			Value:    cond.Value,
+func mapFields(fields []models.Field) []*pb.QueryField {
+	if len(fields) == 0 {
+		return nil
+	}
+	var result []*pb.QueryField
+	for _, field := range fields {
+		result = append(result, &pb.QueryField{
+			NameExpr:    mapExpression(field.NameExpr),
+			ValueExpr:   mapExpression(field.ValueExpr),
+			Constraints: field.Constraints,
 		})
 	}
-	return pbConditions
-}
-
-func convertPostgreSQLConditionField(field string) string {
-	parts := strings.Split(field, ".")
-	if len(parts) == 2 {
-		tableName := strings.ToLower(parts[0]) + "s"
-		return tableName + "." + parts[1]
-	}
-	return strings.ToLower(field)
-}
-
-func mapPostgreSQLFields(fields []models.Field) []*pb.QueryField {
-	var pbFields []*pb.QueryField
-	
-	for _, field := range fields {
-		pbField := &pb.QueryField{
-			Name:        field.Name,
-			Constraints: field.Constraints,
-		}
-		
-		// NEW: Handle expressions ONLY if Expression is set
-		if field.Expression != nil {
-			// Map CaseConditions
-			var pbCaseConditions []*pb.CaseCondition
-			for _, cc := range field.Expression.CaseConditions {
-				pbCaseConditions = append(pbCaseConditions, &pb.CaseCondition{
-					Condition: cc.Condition,
-					ThenValue: cc.ThenValue,
-				})
-			}
-			
-			pbField.FieldType = &pb.QueryField_Expression{
-				Expression: &pb.FieldExpression{
-					ExpressionType: field.Expression.Type,
-					LeftOperand:    field.Expression.LeftOperand,
-					Operator:       field.Expression.Operator,
-					RightOperand:   field.Expression.RightOperand,
-					LeftIsField:    field.Expression.LeftIsField,
-					RightIsField:   field.Expression.RightIsField,
-					FunctionName:   field.Expression.FunctionName,
-					FunctionArgs:   field.Expression.FunctionArgs,
-					CaseConditions: pbCaseConditions,
-					CaseElse:       field.Expression.CaseElse,
-				},
-			}
-		} else {
-			// BACKWARD COMPATIBILITY: Keep using old 'value' field
-			// This is critical for CREATE TABLE where Value = type specification
-			pbField.Value = field.Value
-		}
-		
-		pbFields = append(pbFields, pbField)
-	}
-	
-	return pbFields
+	return result
 }
 
 func getPostgreSQLTableName(entity string, operation string) string {
-	// Convert operation to the format used in TableNamingRules
-	// e.g., "create_table" → "CREATE TABLE"
 	lookupOp := strings.ToUpper(strings.ReplaceAll(operation, "_", " "))
 	rule := mapping.TableNamingRules[lookupOp]
 	
 	if rule == "plural" {
-		return inflection.Plural(strings.ToLower(entity)) 
+		return inflection.Plural(strings.ToLower(entity))
 	}
-	
 	if rule == "none" {
 		return ""
 	}
-	
-	// "exact" or any other value - return as-is (lowercased)
 	return strings.ToLower(entity)
 }
 
 // ============================================================================
-// GROUP 1: CRUD EXTENSIONS
+// CRUD EXTENSIONS (100% TrueAST)
 // ============================================================================
 
-// mapPostgreSQLUpsert converts UPSERT to PostgreSQL ON CONFLICT
-func mapPostgreSQLUpsert(upsert *models.Upsert) *pb.UpsertClause {
+func mapUpsert(upsert *models.Upsert) *pb.UpsertClause {
 	if upsert == nil {
 		return nil
 	}
-	
 	return &pb.UpsertClause{
-		ConflictFields: upsert.ConflictFields,
-		UpdateFields:   mapPostgreSQLFields(upsert.UpdateFields),
-		ConflictAction: "UPDATE", // PostgreSQL: ON CONFLICT DO UPDATE
+		ConflictFields: mapExpressions(upsert.ConflictFields),
+		UpdateFields:   mapFields(upsert.UpdateFields),
+		ConflictAction: "UPDATE",
 	}
 }
 
-// mapPostgreSQLBulkData converts bulk insert rows
-func mapPostgreSQLBulkData(bulkData [][]models.Field) []*pb.BulkInsertRow {
+func mapBulkData(bulkData [][]models.Field) []*pb.BulkInsertRow {
 	if len(bulkData) == 0 {
 		return nil
 	}
-	
-	var pbBulkRows []*pb.BulkInsertRow
+	var result []*pb.BulkInsertRow
 	for _, row := range bulkData {
-		pbBulkRows = append(pbBulkRows, &pb.BulkInsertRow{
-			Fields: mapPostgreSQLFields(row),
+		result = append(result, &pb.BulkInsertRow{
+			Fields: mapFields(row),
 		})
 	}
-	return pbBulkRows
+	return result
 }
 
 // ============================================================================
-// GROUP 3: DQL - JOINS (Existing)
+// JOIN MAPPING (100% TrueAST)
 // ============================================================================
 
-func mapPostgreSQLJoins(joins []models.Join) []*pb.JoinClause {
-	var pbJoins []*pb.JoinClause
+func mapJoins(joins []models.Join) []*pb.JoinClause {
+	if len(joins) == 0 {
+		return nil
+	}
+	var result []*pb.JoinClause
 	for _, join := range joins {
-		pbJoins = append(pbJoins, &pb.JoinClause{
-			JoinType:   string(join.Type),
-			Table:      strings.ToLower(join.Table) + "s",
-			LeftField:  convertPostgreSQLJoinField(join.LeftField),
-			RightField: convertPostgreSQLJoinField(join.RightField),
+		result = append(result, &pb.JoinClause{
+			JoinType:  string(join.Type),
+			Table:     strings.ToLower(join.Table) + "s",
+			LeftExpr:  mapExpression(join.LeftExpr),
+			RightExpr: mapExpression(join.RightExpr),
 		})
 	}
-	return pbJoins
-}
-
-func convertPostgreSQLJoinField(field string) string {
-	parts := strings.Split(field, ".")
-	if len(parts) != 2 {
-		return field
-	}
-	
-	tableName := strings.ToLower(parts[0]) + "s"
-	columnName := parts[1]
-	
-	return tableName + "." + columnName
+	return result
 }
 
 // ============================================================================
-// GROUP 3: DQL - AGGREGATES (Existing)
+// AGGREGATE MAPPING (100% TrueAST)
 // ============================================================================
 
-func mapPostgreSQLAggregate(agg *models.Aggregation) *pb.AggregateClause {
+func mapAggregate(agg *models.Aggregation) *pb.AggregateClause {
 	if agg == nil {
 		return nil
 	}
 	return &pb.AggregateClause{
-		Function: string(agg.Function),
-		Field:    agg.Field,
+		Function:  string(agg.Function),
+		FieldExpr: mapExpression(agg.FieldExpr),
 	}
 }
 
-func mapPostgreSQLOrderBy(orderBy []models.OrderBy) []*pb.OrderByClause {
-	var pbOrderBy []*pb.OrderByClause
-	for _, ob := range orderBy {
-		pbOrderBy = append(pbOrderBy, &pb.OrderByClause{
-			Field:     ob.Field,
-			Direction: string(ob.Direction),
-		})
-	}
-	return pbOrderBy
-}
-
 // ============================================================================
-// GROUP 3: DQL - WINDOW FUNCTIONS (NEW)
+// WINDOW FUNCTIONS (100% TrueAST)
 // ============================================================================
 
-func mapPostgreSQLWindowFunctions(windowFuncs []models.WindowFunction) []*pb.WindowClause {
+func mapWindowFunctions(windowFuncs []models.WindowFunction) []*pb.WindowClause {
 	if len(windowFuncs) == 0 {
 		return nil
 	}
-	
-	var pbWindows []*pb.WindowClause
+	var result []*pb.WindowClause
 	for _, wf := range windowFuncs {
-		pbWindow := &pb.WindowClause{
+		result = append(result, &pb.WindowClause{
 			Function:    string(wf.Function),
+			FieldExpr:   mapExpression(wf.FieldExpr),
 			Alias:       wf.Alias,
-			PartitionBy: wf.PartitionBy,
-			OrderBy:     mapPostgreSQLOrderBy(wf.OrderBy),
+			PartitionBy: mapExpressions(wf.PartitionBy),
+			OrderBy:     mapOrderByClauses(wf.OrderBy),
 			Offset:      int32(wf.Offset),
 			Buckets:     int32(wf.Buckets),
-		}
-		
-		// For LAG/LEAD, set the field
-		if wf.Function == models.Lag || wf.Function == models.Lead {
-			pbWindow.Alias = wf.Field
-		}
-		
-		pbWindows = append(pbWindows, pbWindow)
+		})
 	}
-	
-	return pbWindows
+	return result
 }
 
 // ============================================================================
-// GROUP 3: DQL - COMMON TABLE EXPRESSIONS (NEW)
+// CTE MAPPING (100% TrueAST)
 // ============================================================================
 
-func mapPostgreSQLCTE(cte *models.CTE) *pb.CTEClause {
+func mapCTE(cte *models.CTE, tenantID string) *pb.CTEClause {
 	if cte == nil {
 		return nil
 	}
 	
+	var cteQuery *pb.RelationalQuery
+	if cte.Query != nil {
+		cteQuery, _ = TranslatePostgreSQL(cte.Query, tenantID)
+	}
+	
 	return &pb.CTEClause{
 		CteName:   cte.Name,
-		CteQuery:  cte.Query,
+		CteQuery:  cteQuery,
 		Recursive: cte.Recursive,
 	}
 }
 
 // ============================================================================
-// GROUP 3: DQL - SUBQUERIES (NEW)
+// SUBQUERY MAPPING (100% TrueAST)
 // ============================================================================
 
-func mapPostgreSQLSubquery(subquery *models.Subquery) *pb.SubqueryClause {
+func mapSubquery(subquery *models.Subquery, tenantID string) *pb.SubqueryClause {
 	if subquery == nil {
 		return nil
 	}
 	
+	var subqueryQuery *pb.RelationalQuery
+	if subquery.Query != nil {
+		subqueryQuery, _ = TranslatePostgreSQL(subquery.Query, tenantID)
+	}
+	
 	return &pb.SubqueryClause{
 		SubqueryType: subquery.Type,
-		Field:        subquery.Field,
-		Subquery:     subquery.Query,
+		FieldExpr:    mapExpression(subquery.FieldExpr),
+		Subquery:     subqueryQuery,
 		Alias:        subquery.Alias,
 	}
 }
 
 // ============================================================================
-// GROUP 3: DQL - CASE STATEMENTS (NEW)
+// SET OPERATION MAPPING (100% TrueAST)
 // ============================================================================
 
-func mapPostgreSQLCaseStatement(caseStmt *models.CaseStatement) *pb.CaseClause {
-	if caseStmt == nil {
-		return nil
-	}
-	
-	var pbWhenClauses []*pb.CaseWhen
-	for _, when := range caseStmt.WhenClauses {
-		pbWhenClauses = append(pbWhenClauses, &pb.CaseWhen{
-			Condition: when.Condition,
-			ThenValue: when.ThenValue,
-		})
-	}
-	
-	return &pb.CaseClause{
-		WhenClauses: pbWhenClauses,
-		ElseValue:   caseStmt.ElseValue,
-		Alias:       caseStmt.Alias,
-	}
-}
-
-// ============================================================================
-// GROUP 3: DQL - SET OPERATIONS (NEW)
-// ============================================================================
-
-func mapPostgreSQLSetOperation(setOp *models.SetOperation, tenantID string) (*pb.SetOperationClause, error) {
+func mapSetOperation(setOp *models.SetOperation, tenantID string) (*pb.SetOperationClause, error) {
 	if setOp == nil {
 		return nil, nil
 	}
 	
-	// Recursively translate left query
-	leftUniversal, err := TranslatePostgreSQL(setOp.LeftQuery, tenantID)
+	leftQuery, err := TranslatePostgreSQL(setOp.LeftQuery, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to translate left query: %w", err)
 	}
 	
-	// Recursively translate right query
-	rightUniversal, err := TranslatePostgreSQL(setOp.RightQuery, tenantID)
+	rightQuery, err := TranslatePostgreSQL(setOp.RightQuery, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to translate right query: %w", err)
 	}
 	
 	return &pb.SetOperationClause{
 		OperationType: string(setOp.Type),
-		LeftQuery:     leftUniversal,
-		RightQuery:    rightUniversal,
+		LeftQuery:     leftQuery,
+		RightQuery:    rightQuery,
 	}, nil
 }
 
 // ============================================================================
-// GROUP 3: DQL - SELECT EXPRESSIONS (NEW)
+// SELECT COLUMNS MAPPING (100% TrueAST)
 // ============================================================================
 
-func mapPostgreSQLSelectColumns(selectCols []models.SelectColumn) []*pb.SelectColumn {
+func mapSelectColumns(selectCols []models.SelectColumn) []*pb.SelectColumn {
 	if len(selectCols) == 0 {
 		return nil
 	}
-	
-	var pbSelectCols []*pb.SelectColumn
+	var result []*pb.SelectColumn
 	for _, col := range selectCols {
-		pbCol := &pb.SelectColumn{
-			Expression: col.Expression,
-			Alias:      col.Alias,
-		}
-		
-		// Map expression object if present
-		if col.ExpressionObj != nil {
-			var pbCaseConditions []*pb.CaseCondition
-			for _, cc := range col.ExpressionObj.CaseConditions {
-				pbCaseConditions = append(pbCaseConditions, &pb.CaseCondition{
-					Condition: cc.Condition,
-					ThenValue: cc.ThenValue,
-				})
-			}
-			
-			pbCol.ExpressionObj = &pb.FieldExpression{
-				ExpressionType: col.ExpressionObj.Type,
-				LeftOperand:    col.ExpressionObj.LeftOperand,
-				Operator:       col.ExpressionObj.Operator,
-				RightOperand:   col.ExpressionObj.RightOperand,
-				LeftIsField:    col.ExpressionObj.LeftIsField,
-				RightIsField:   col.ExpressionObj.RightIsField,
-				FunctionName:   col.ExpressionObj.FunctionName,
-				FunctionArgs:   col.ExpressionObj.FunctionArgs,
-				CaseConditions: pbCaseConditions,
-				CaseElse:       col.ExpressionObj.CaseElse,
-			}
-		}
-		
-		pbSelectCols = append(pbSelectCols, pbCol)
+		result = append(result, &pb.SelectColumn{
+			ExpressionObj: mapExpression(col.ExpressionObj),
+			Alias:         col.Alias,
+		})
 	}
-	
-	return pbSelectCols
+	return result
 }
 
-// buildPostgreSQLString populates the SQL string based on operation type
+// ============================================================================
+// VIEW QUERY MAPPING (100% TrueAST)
+// ============================================================================
+
+func mapViewQuery(viewQuery *models.Query, tenantID string) *pb.RelationalQuery {
+	if viewQuery == nil {
+		return nil
+	}
+	result, _ := TranslatePostgreSQL(viewQuery, tenantID)
+	return result
+}
+
+// ============================================================================
+// SQL STRING BUILDER (unchanged)
+// ============================================================================
+
 func buildPostgreSQLString(query *pb.RelationalQuery) string {
 	operation := strings.ToLower(query.Operation)
 	
-	// CRUD Operations
 	switch operation {
 	case "select":
 		sql, _ := pgbuilders.BuildSelectSQL(query)
@@ -500,8 +472,6 @@ func buildPostgreSQLString(query *pb.RelationalQuery) string {
 	case "bulk_insert":
 		sql, _ := pgbuilders.BuildBulkInsertSQL(query)
 		return sql
-	
-	// DDL Operations
 	case "create_table":
 		return pgbuilders.BuildCreateTableSQL(query)
 	case "alter_table":
@@ -535,8 +505,6 @@ func buildPostgreSQLString(query *pb.RelationalQuery) string {
 	case "alter_view":
 		sql, _ := pgbuilders.BuildAlterViewSQL(query)
 		return sql
-	
-	// DQL Operations
 	case "inner_join", "left_join", "right_join", "full_join", "cross_join":
 		sql, _ := pgbuilders.BuildJoinSQL(query)
 		return sql
@@ -559,8 +527,6 @@ func buildPostgreSQLString(query *pb.RelationalQuery) string {
 	case "union", "union_all", "intersect", "except":
 		sql, _ := pgbuilders.BuildSetOperationSQL(query)
 		return sql
-	
-	// DCL Operations
 	case "grant":
 		sql, _ := pgbuilders.BuildGrantSQL(query)
 		return sql
@@ -588,8 +554,6 @@ func buildPostgreSQLString(query *pb.RelationalQuery) string {
 	case "revoke_role":
 		sql, _ := pgbuilders.BuildRevokeRoleSQL(query)
 		return sql
-	
-	// TCL Operations
 	case "begin", "start":
 		return "BEGIN"
 	case "commit":
@@ -608,8 +572,7 @@ func buildPostgreSQLString(query *pb.RelationalQuery) string {
 	case "set_transaction":
 		sql, _ := pgbuilders.BuildSetTransactionSQL(query)
 		return sql
-	
 	default:
-		return "" // Unknown operation
+		return ""
 	}
 }

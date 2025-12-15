@@ -1,374 +1,516 @@
 package parser
 
 import (
-	"fmt"
 	"strings"
-	"github.com/omniql-engine/omniql/engine/models"
+
+	"github.com/omniql-engine/omniql/engine/ast"
 )
 
-// ddlParsers maps DDL operations to their parser functions
-// Fully dynamic - no switch statement needed!
-var ddlParsers = map[string]func([]string) (*models.Query, error){
-	"CREATE TABLE":      ParseCreateTable,
-	"ALTER TABLE":       ParseAlterTable,
-	"DROP TABLE":        ParseDropTable,
-	"TRUNCATE TABLE":    ParseTruncateTable,
-	"TRUNCATE":          ParseTruncateTable,
-	"CREATE INDEX":      ParseCreateIndex,
-	"DROP INDEX":        ParseDropIndex,
-	"CREATE COLLECTION": ParseCreateCollection,
-	"DROP COLLECTION":   ParseDropCollection,
-	"CREATE DATABASE":   ParseCreateDatabase,
-	"DROP DATABASE":     ParseDropDatabase,
-	"CREATE VIEW":       ParseCreateView,
-	"DROP VIEW":         ParseDropView,
-	"ALTER VIEW":        ParseAlterView,
-	"RENAME TABLE":      ParseRenameTable,
-}
+// =============================================================================
+// DDL DISPATCHER
+// =============================================================================
 
-// parseDDL routes DDL operations to specific parsers using function map
-func parseDDL(operation string, parts []string) (*models.Query, error) {
-	parser, exists := ddlParsers[operation]
-	if !exists {
-		return nil, fmt.Errorf("unknown DDL operation: %s", operation)
+func (p *Parser) parseDDL(op string) (*ast.QueryNode, error) {
+	switch op {
+	case "CREATE TABLE":
+		return p.parseCreateTable()
+	case "DROP TABLE":
+		return p.parseDropTable()
+	case "ALTER TABLE":
+		return p.parseAlterTable()
+	case "TRUNCATE TABLE", "TRUNCATE":
+		return p.parseTruncate()
+	case "CREATE INDEX":
+		return p.parseCreateIndex()
+	case "DROP INDEX":
+		return p.parseDropIndex()
+	case "CREATE DATABASE":
+		return p.parseCreateDatabase()
+	case "DROP DATABASE":
+		return p.parseDropDatabase()
+	case "CREATE VIEW":
+		return p.parseCreateView()
+	case "DROP VIEW":
+		return p.parseDropView()
+	case "ALTER VIEW":
+		return p.parseAlterView()
+	case "RENAME TABLE":
+		return p.parseRenameTable()
+	case "CREATE COLLECTION":
+		return p.parseCreateCollection()
+	case "DROP COLLECTION":
+		return p.parseDropCollection()
+	default:
+		return nil, p.error("unimplemented DDL: " + op)
 	}
-	return parser(parts)
 }
 
-// ParseCreateTable handles: CREATE TABLE users WITH id:AUTO,name:STRING(100),email:STRING(255):UNIQUE,age:INTEGER
-// Supports constraints: UNIQUE, NOT_NULL, PRIMARY_KEY, etc.
-func ParseCreateTable(parts []string) (*models.Query, error) {
-	query := &models.Query{
+// =============================================================================
+// DDL PARSERS - Grammar: OPERATION keyword* identifier ...
+// =============================================================================
+
+// CREATE TABLE [keywords] name WITH columns
+func (p *Parser) parseCreateTable() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
 		Operation: "CREATE TABLE",
+		Position:  p.current().Position,
 	}
-	
-	entityIndex := getEntityIndex(query.Operation)
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("CREATE TABLE requires table name")
+	p.advance() // consume CREATE TABLE
+
+	// Grammar: skip any keywords until identifier
+	p.skipKeywords()
+
+	// Now at identifier = table name
+	entity, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
 	}
-	
-	query.Entity = parts[entityIndex]
-	
-	// Check for WITH clause
-	withIndex := findKeyword(parts, "WITH")
-	if withIndex != -1 {
-		// Join remaining parts and parse column definitions
-		// Format: id:AUTO,name:STRING(100),email:STRING(255):UNIQUE:NOT_NULL
-		fieldsStr := strings.Join(parts[withIndex+1:], " ")
-		fieldPairs := strings.Split(fieldsStr, ",")
-		
-		for _, pair := range fieldPairs {
-			// Split by colon: [name, type, constraint1, constraint2, ...]
-			colParts := strings.Split(strings.TrimSpace(pair), ":")
-			
-			if len(colParts) >= 2 {
-				field := models.Field{
-					Name:  strings.TrimSpace(colParts[0]),
-					Value: strings.TrimSpace(colParts[1]),
-				}
-				
-				// ✅ FIX: Extract constraints (parts 2+)
-				// email:STRING(255):UNIQUE:NOT_NULL → constraints = ["UNIQUE", "NOT_NULL"]
-				if len(colParts) > 2 {
-					for _, constraint := range colParts[2:] {
-						trimmed := strings.TrimSpace(constraint)
-						if trimmed != "" {
-							field.Constraints = append(field.Constraints, trimmed)
-						}
-					}
-				}
-				
-				query.Fields = append(query.Fields, field)
-			}
-		}
+	node.Entity = entity
+
+	// WITH columns
+	if err := p.expect("WITH"); err != nil {
+		return nil, err
 	}
-	
-	return query, nil
+
+	columns, err := p.parseColumnDefinitions()
+	if err != nil {
+		return nil, err
+	}
+	node.Fields = columns
+
+	return node, nil
 }
 
-// ParseAlterTable handles: ALTER TABLE products ADD_COLUMN:description:TEXT
-func ParseAlterTable(parts []string) (*models.Query, error) {
-	query := &models.Query{
-		Operation: "ALTER TABLE",
-	}
-	
-	entityIndex := getEntityIndex(query.Operation)
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("ALTER TABLE requires table name")
-	}
-	
-	query.Entity = parts[entityIndex]
-	
-	// Parse alter operation (parts[entityIndex+1]: ADD_COLUMN:description:TEXT or RENAME_COLUMN:old:new)
-	if len(parts) > entityIndex+1 {
-		alterStr := strings.Join(parts[entityIndex+1:], " ")
-		alterParts := strings.Split(alterStr, ":")
-		
-		if len(alterParts) >= 2 {
-			query.Conditions = []models.Condition{
-				{
-					Field: alterParts[0],                    // Operation: ADD_COLUMN, DROP_COLUMN, etc.
-					Value: strings.Join(alterParts[1:], ":"), // Rest: description:TEXT or old:new
-				},
-			}
-		}
-	}
-	
-	return query, nil
-}
-
-// ParseDropTable handles: DROP TABLE products
-func ParseDropTable(parts []string) (*models.Query, error) {
-	entityIndex := getEntityIndex("DROP TABLE")
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("DROP TABLE requires table name")
-	}
-	
-	return &models.Query{
+// DROP TABLE [keywords] name
+func (p *Parser) parseDropTable() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
 		Operation: "DROP TABLE",
-		Entity:    parts[entityIndex],
-	}, nil
+		Position:  p.current().Position,
+	}
+	p.advance() // consume DROP TABLE
+
+	// Grammar: skip any keywords until identifier
+	p.skipKeywords()
+
+	// Now at identifier = table name
+	entity, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.Entity = entity
+
+	return node, nil
 }
 
-// ParseTruncateTable handles: TRUNCATE TABLE products
-func ParseTruncateTable(parts []string) (*models.Query, error) {
-	// Note: TRUNCATE can be 1 or 2 words depending on database
-	operation := "TRUNCATE TABLE"
-	if len(parts) >= 2 && strings.ToUpper(parts[1]) != "TABLE" {
-		operation = "TRUNCATE"
+// ALTER TABLE name action
+// Format: ALTER TABLE products ADD_COLUMN:description:TEXT
+//         ALTER TABLE products DROP_COLUMN:description
+//         ALTER TABLE products RENAME_COLUMN:name:product_name
+func (p *Parser) parseAlterTable() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
+		Operation: "ALTER TABLE",
+		Position:  p.current().Position,
 	}
-	
-	entityIndex := getEntityIndex(operation)
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("TRUNCATE TABLE requires table name")
-	}
-	
-	return &models.Query{
-		Operation: operation,
-		Entity:    parts[entityIndex],
-	}, nil
-}
+	p.advance() // consume ALTER TABLE
 
-// ParseCreateIndex handles: CREATE INDEX products idx_name:name
-// ParseCreateIndex handles: CREATE INDEX products idx_name:name UNIQUE
-func ParseCreateIndex(parts []string) (*models.Query, error) {
-	query := &models.Query{
-		Operation: "CREATE INDEX",
+	entity, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
 	}
-	
-	entityIndex := getEntityIndex(query.Operation)
-	if len(parts) < entityIndex+2 {
-		return nil, fmt.Errorf("CREATE INDEX requires table name and index specification")
+	node.Entity = entity
+
+	// Parse action: ADD name:TYPE or DROP name or RENAME old:new
+	// Also accepts: ADD_COLUMN:name:TYPE, DROP_COLUMN:name, RENAME_COLUMN:old:new
+	if p.isAtEnd() {
+		return node, nil
 	}
-	
-	query.Entity = parts[entityIndex] // Table name
-	
-	// Parse index specification: idx_name:column_name
-	indexSpec := parts[entityIndex+1]
-	indexParts := strings.Split(indexSpec, ":")
-	
-	if len(indexParts) == 2 {
-		field := models.Field{
-			Name:  indexParts[0], // Index name
-			Value: indexParts[1], // Column name
+	actionTok := p.advance()
+	action := strings.ToUpper(actionTok.Value)
+	pos := actionTok.Position
+
+	// Handle SQL-like syntax: ADD name:type, DROP name, RENAME old TO new
+	if action == "ADD" || action == "DROP" || action == "RENAME" || action == "MODIFY" {
+		if p.isAtEnd() {
+			return nil, p.error("expected column specification after " + action)
 		}
-		
-		// Capture modifiers like UNIQUE (parts[entityIndex+2+])
-		if len(parts) > entityIndex+2 {
-			for _, modifier := range parts[entityIndex+2:] {
-				trimmed := strings.TrimSpace(modifier)
-				if trimmed != "" {
-					field.Constraints = append(field.Constraints, trimmed)
-				}
+		colTok := p.advance()
+		parts := strings.Split(colTok.Value, ":")
+
+		switch action {
+		case "ADD":
+			node.AlterAction = "ADD_COLUMN"
+			if len(parts) < 2 {
+				return nil, p.error("ADD requires column:type")
 			}
+			node.Fields = append(node.Fields, ast.FieldNode{
+				NameExpr:  makeFieldExpr(parts[0], pos),
+				ValueExpr: makeLiteralExpr(parts[1], pos),
+				Position:  pos,
+			})
+		case "DROP":
+			node.AlterAction = "DROP_COLUMN"
+			node.Fields = append(node.Fields, ast.FieldNode{
+				NameExpr: makeFieldExpr(parts[0], pos),
+				Position: pos,
+			})
+		case "RENAME":
+			node.AlterAction = "RENAME_COLUMN"
+			if len(parts) < 2 {
+				return nil, p.error("RENAME requires old_name:new_name")
+			}
+			node.Fields = append(node.Fields, ast.FieldNode{
+				NameExpr:  makeFieldExpr(parts[0], pos),
+				ValueExpr: makeFieldExpr(parts[1], pos), // new name
+				Position:  pos,
+			})
+		case "MODIFY":
+			node.AlterAction = "MODIFY_COLUMN"
+			if len(parts) < 2 {
+				return nil, p.error("MODIFY requires column:new_type")
+			}
+			node.Fields = append(node.Fields, ast.FieldNode{
+				NameExpr:  makeFieldExpr(parts[0], pos),
+				ValueExpr: makeLiteralExpr(parts[1], pos),
+				Position:  pos,
+			})
 		}
-		
-		query.Fields = []models.Field{field}
+		return node, nil
 	}
-	
-	return query, nil
+
+	// Handle legacy format: ADD_COLUMN:name:type
+	parts := strings.Split(actionTok.Value, ":")
+	if len(parts) < 2 {
+		return nil, p.error("expected ALTER action like ADD column:TYPE")
+	}
+	action = strings.ToUpper(parts[0])
+
+	switch action {
+	case "ADD_COLUMN":
+		node.AlterAction = "ADD_COLUMN"
+		if len(parts) < 3 {
+			return nil, p.error("ADD_COLUMN requires column:type")
+		}
+		node.Fields = append(node.Fields, ast.FieldNode{
+			NameExpr:  makeFieldExpr(parts[1], pos),
+			ValueExpr: makeLiteralExpr(parts[2], pos),
+			Position:  pos,
+		})
+
+	case "DROP_COLUMN":
+		node.AlterAction = "DROP_COLUMN"
+		node.Fields = append(node.Fields, ast.FieldNode{
+			NameExpr: makeFieldExpr(parts[1], pos),
+			Position: pos,
+		})
+
+	case "RENAME_COLUMN":
+		node.AlterAction = "RENAME_COLUMN"
+		if len(parts) < 3 {
+			return nil, p.error("RENAME_COLUMN requires old_name:new_name")
+		}
+		node.Fields = append(node.Fields, ast.FieldNode{
+			NameExpr:  makeFieldExpr(parts[1], pos),
+			ValueExpr: makeFieldExpr(parts[2], pos),
+			Position:  pos,
+		})
+
+	case "MODIFY_COLUMN":
+		node.AlterAction = "MODIFY_COLUMN"
+		if len(parts) < 3 {
+			return nil, p.error("MODIFY_COLUMN requires column:new_type")
+		}
+		node.Fields = append(node.Fields, ast.FieldNode{
+			NameExpr:  makeFieldExpr(parts[1], pos),
+			ValueExpr: makeLiteralExpr(parts[2], pos),
+			Position:  pos,
+		})
+
+	default:
+		return nil, p.error("unknown ALTER action: " + action)
+	}
+
+	return node, nil
 }
 
-// ParseDropIndex handles: DROP INDEX products idx_name
-func ParseDropIndex(parts []string) (*models.Query, error) {
-	entityIndex := getEntityIndex("DROP INDEX")
-	if len(parts) < entityIndex+2 {
-		return nil, fmt.Errorf("DROP INDEX requires table name and index name")
+// TRUNCATE [TABLE] name
+func (p *Parser) parseTruncate() (*ast.QueryNode, error) {
+	op := strings.ToUpper(p.current().Value) // preserve "TRUNCATE" or "TRUNCATE TABLE"
+	node := &ast.QueryNode{
+		Operation: op,
+		Position:  p.current().Position,
 	}
-	
-	return &models.Query{
+	p.advance() // consume TRUNCATE [TABLE]
+
+	// Don't use skipKeywords - just get entity directly
+	entity, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.Entity = entity
+
+	return node, nil
+}
+
+// CREATE INDEX [keywords] table index_name:column [UNIQUE]
+// Format: CREATE INDEX products idx_product_name:product_name UNIQUE
+func (p *Parser) parseCreateIndex() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
+		Operation: "CREATE INDEX",
+		Position:  p.current().Position,
+	}
+	p.advance() // consume CREATE INDEX
+
+	// Don't use skipKeywords() - it eats the table name
+	// Just get table name directly
+	entity, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.Entity = entity
+
+	// Index name:column (as single token with colon)
+	if p.isAtEnd() {
+		return nil, p.error("expected index_name:column")
+	}
+
+	indexTok := p.advance()
+	parts := strings.Split(indexTok.Value, ":")
+	pos := indexTok.Position
+
+	if len(parts) < 2 {
+		return nil, p.error("expected index_name:column format")
+	}
+
+	field := ast.FieldNode{
+		NameExpr:  makeFieldExpr(parts[0], pos),
+		ValueExpr: makeFieldExpr(parts[1], pos),
+		Position:  pos,
+	}
+
+	// Check for UNIQUE modifier
+	if !p.isAtEnd() && strings.ToUpper(p.current().Value) == "UNIQUE" {
+		p.advance()
+		field.Constraints = append(field.Constraints, "UNIQUE")
+	}
+
+	node.Fields = append(node.Fields, field)
+
+	return node, nil
+}
+
+// DROP INDEX [keywords] table index_name
+// Format: DROP INDEX products idx_product_name
+func (p *Parser) parseDropIndex() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
 		Operation: "DROP INDEX",
-		Entity:    parts[entityIndex], // Table name
-		Fields: []models.Field{
-			{Name: parts[entityIndex+1]}, // Index name
-		},
-	}, nil
-}
-
-// ParseCreateCollection handles: CREATE COLLECTION products
-func ParseCreateCollection(parts []string) (*models.Query, error) {
-	entityIndex := getEntityIndex("CREATE COLLECTION")
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("CREATE COLLECTION requires collection name")
+		Position:  p.current().Position,
 	}
-	
-	return &models.Query{
-		Operation: "CREATE COLLECTION",
-		Entity:    parts[entityIndex],
-	}, nil
-}
+	p.advance() // consume DROP INDEX
 
-// ParseDropCollection handles: DROP COLLECTION products
-func ParseDropCollection(parts []string) (*models.Query, error) {
-	entityIndex := getEntityIndex("DROP COLLECTION")
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("DROP COLLECTION requires collection name")
+	// Don't use skipKeywords() - just get table name directly
+	entity, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
 	}
-	
-	return &models.Query{
-		Operation: "DROP COLLECTION",
-		Entity:    parts[entityIndex],
-	}, nil
-}
+	node.Entity = entity
 
-// ============================================================================
-// NEW: DATABASE OPERATIONS
-// ============================================================================
-
-// ParseCreateDatabase handles: CREATE DATABASE mydb
-func ParseCreateDatabase(parts []string) (*models.Query, error) {
-	entityIndex := getEntityIndex("CREATE DATABASE")
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("CREATE DATABASE requires database name")
+	// Index name
+	if !p.isAtEnd() {
+		nameTok := p.current()
+		name, err := p.expectIdentifier()
+		if err != nil {
+			return nil, err
+		}
+		// Store index name in Fields
+		node.Fields = append(node.Fields, ast.FieldNode{
+			NameExpr: makeFieldExpr(name, nameTok.Position),
+			Position: nameTok.Position,
+		})
 	}
-	
-	return &models.Query{
-		Operation:    "CREATE DATABASE",
-		DatabaseName: parts[entityIndex],
-	}, nil
+
+	return node, nil
 }
 
-// ParseDropDatabase handles: DROP DATABASE mydb
-func ParseDropDatabase(parts []string) (*models.Query, error) {
-	entityIndex := getEntityIndex("DROP DATABASE")
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("DROP DATABASE requires database name")
+// CREATE DATABASE [keywords] name
+func (p *Parser) parseCreateDatabase() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
+		Operation: "CREATE DATABASE",
+		Position:  p.current().Position,
 	}
-	
-	return &models.Query{
-		Operation:    "DROP DATABASE",
-		DatabaseName: parts[entityIndex],
-	}, nil
+	p.advance() // consume CREATE DATABASE
+
+	p.skipKeywords()
+
+	name, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.DatabaseName = name
+
+	return node, nil
 }
 
-// ============================================================================
-// NEW: VIEW OPERATIONS
-// ============================================================================
+// DROP DATABASE [keywords] name
+func (p *Parser) parseDropDatabase() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
+		Operation: "DROP DATABASE",
+		Position:  p.current().Position,
+	}
+	p.advance() // consume DROP DATABASE
 
-// ParseCreateView handles: CREATE VIEW active_users AS GET User WHERE status = active
-// Views are virtual tables based on SELECT queries
-func ParseCreateView(parts []string) (*models.Query, error) {
-	query := &models.Query{
+	p.skipKeywords()
+
+	name, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.DatabaseName = name
+
+	return node, nil
+}
+
+// CREATE VIEW name AS query (100% TrueAST)
+// Format: CREATE VIEW active_users AS GET User WHERE active = true
+func (p *Parser) parseCreateView() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
 		Operation: "CREATE VIEW",
+		Position:  p.current().Position,
 	}
-	
-	entityIndex := getEntityIndex(query.Operation)
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("CREATE VIEW requires view name")
+	p.advance() // consume CREATE VIEW
+
+	p.skipKeywords()
+
+	name, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
 	}
-	
-	query.ViewName = parts[entityIndex]
-	
-	// Find AS keyword
-	asIndex := findKeyword(parts, "AS")
-	if asIndex == -1 {
-		return nil, fmt.Errorf("CREATE VIEW requires AS clause with query definition")
+	node.ViewName = name
+
+	if err := p.expect("AS"); err != nil {
+		return nil, err
 	}
-	
-	// Everything after AS is the view definition query
-	// It should be a valid OQL query (usually GET with WHERE)
-	viewQueryParts := parts[asIndex+1:]
-	if len(viewQueryParts) == 0 {
-		return nil, fmt.Errorf("CREATE VIEW AS clause requires query definition")
+
+	// Parse the view query as *QueryNode (100% TrueAST - no fallback)
+	viewQuery, err := p.Parse()
+	if err != nil {
+		return nil, err
 	}
-	
-	// Store the view query as a string
-	// The translator will parse this as a nested query
-	query.ViewQuery = strings.Join(viewQueryParts, " ")
-	
-	return query, nil
+	node.ViewQuery = viewQuery
+
+	return node, nil
 }
 
-// ParseDropView handles: DROP VIEW active_users
-func ParseDropView(parts []string) (*models.Query, error) {
-	entityIndex := getEntityIndex("DROP VIEW")
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("DROP VIEW requires view name")
-	}
-	
-	return &models.Query{
+// DROP VIEW [keywords] name
+func (p *Parser) parseDropView() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
 		Operation: "DROP VIEW",
-		ViewName:  parts[entityIndex],
-	}, nil
+		Position:  p.current().Position,
+	}
+	p.advance() // consume DROP VIEW
+
+	p.skipKeywords()
+
+	name, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.ViewName = name
+
+	return node, nil
 }
 
-// ParseAlterView handles: ALTER VIEW active_users AS GET User WHERE status = active AND age > 18
-// In PostgreSQL: CREATE OR REPLACE VIEW
-// In MySQL: ALTER VIEW
-// In SQLite: DROP + CREATE (not true ALTER)
-func ParseAlterView(parts []string) (*models.Query, error) {
-	query := &models.Query{
-		Operation: "ALTER VIEW",
-	}
-	
-	entityIndex := getEntityIndex(query.Operation)
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("ALTER VIEW requires view name")
-	}
-	
-	query.ViewName = parts[entityIndex]
-	
-	// Find AS keyword
-	asIndex := findKeyword(parts, "AS")
-	if asIndex == -1 {
-		return nil, fmt.Errorf("ALTER VIEW requires AS clause with new query definition")
-	}
-	
-	// Everything after AS is the new view definition
-	viewQueryParts := parts[asIndex+1:]
-	if len(viewQueryParts) == 0 {
-		return nil, fmt.Errorf("ALTER VIEW AS clause requires query definition")
-	}
-	
-	query.ViewQuery = strings.Join(viewQueryParts, " ")
-	
-	return query, nil
-}
-
-// ============================================================================
-// NEW: RENAME OPERATIONS
-// ============================================================================
-
-// ParseRenameTable handles: RENAME TABLE old_users TO new_users
-func ParseRenameTable(parts []string) (*models.Query, error) {
-	query := &models.Query{
+// RENAME TABLE name TO newname
+func (p *Parser) parseRenameTable() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
 		Operation: "RENAME TABLE",
+		Position:  p.current().Position,
 	}
-	
-	entityIndex := getEntityIndex(query.Operation)
-	if len(parts) < entityIndex+1 {
-		return nil, fmt.Errorf("RENAME TABLE requires table name")
+	p.advance() // consume RENAME TABLE
+
+	entity, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
 	}
-	
-	query.Entity = parts[entityIndex] // Old table name
-	
-	// Find TO keyword
-	toIndex := findKeyword(parts, "TO")
-	if toIndex == -1 || toIndex+1 >= len(parts) {
-		return nil, fmt.Errorf("RENAME TABLE requires TO clause with new name")
+	node.Entity = entity
+
+	if err := p.expect("TO"); err != nil {
+		return nil, err
 	}
-	
-	query.NewName = parts[toIndex+1] // New table name
-	
-	return query, nil
+
+	newName, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.NewName = newName
+
+	return node, nil
+}
+
+// ALTER VIEW name AS query (100% TrueAST)
+// Format: ALTER VIEW active_users AS GET User WHERE status = 'active'
+func (p *Parser) parseAlterView() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
+		Operation: "ALTER VIEW",
+		Position:  p.current().Position,
+	}
+	p.advance() // consume ALTER VIEW
+
+	p.skipKeywords()
+
+	name, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.ViewName = name
+
+	if err := p.expect("AS"); err != nil {
+		return nil, err
+	}
+
+	// Parse the view query as *QueryNode (100% TrueAST - no fallback)
+	viewQuery, err := p.Parse()
+	if err != nil {
+		return nil, err
+	}
+	node.ViewQuery = viewQuery
+
+	return node, nil
+}
+
+// CREATE COLLECTION [keywords] name (MongoDB)
+func (p *Parser) parseCreateCollection() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
+		Operation: "CREATE COLLECTION",
+		Position:  p.current().Position,
+	}
+	p.advance() // consume CREATE COLLECTION
+
+	p.skipKeywords()
+
+	name, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.Entity = name
+
+	return node, nil
+}
+
+// DROP COLLECTION [keywords] name (MongoDB)
+func (p *Parser) parseDropCollection() (*ast.QueryNode, error) {
+	node := &ast.QueryNode{
+		Operation: "DROP COLLECTION",
+		Position:  p.current().Position,
+	}
+	p.advance() // consume DROP COLLECTION
+
+	p.skipKeywords()
+
+	name, err := p.expectIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	node.Entity = name
+
+	return node, nil
 }

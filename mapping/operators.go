@@ -1,5 +1,7 @@
 package mapping
 
+import "strings"
+
 // OperatorMap - Runtime mapping for translators
 // Usage: OperatorMap["MongoDB"]["="] returns "$eq"
 var OperatorMap = map[string]map[string]string{
@@ -291,4 +293,99 @@ var OperatorExamples = map[string]map[string]string{
 		"IS_NULL": "{deleted_at: null}",
 		"IS_NOT_NULL": "{updated_at: {$ne: null}}",
 	},
+}
+
+// ArithmeticOperators - operators for expressions
+var ArithmeticOperators = map[string]bool{
+    "+": true,
+    "-": true,
+    "*": true,
+    "/": true,
+    "%": true,
+}
+
+// OperatorCategories - SSOT for operator types
+var OperatorCategories = map[string]string{
+	// Multi-value operators (IN)
+	"IN":          "MULTI_VALUE",
+	"NOT_IN":      "MULTI_VALUE",
+	
+	// Range operators (BETWEEN)
+	"BETWEEN":     "RANGE",
+	"NOT_BETWEEN": "RANGE",
+	
+	// Null check operators (no value needed)
+	"IS_NULL":     "NULLCHECK",
+	"IS_NOT_NULL": "NULLCHECK",
+	
+	// Standard comparison (single value)
+	"=":           "COMPARISON",
+	"!=":          "COMPARISON",
+	">":           "COMPARISON",
+	"<":           "COMPARISON",
+	">=":          "COMPARISON",
+	"<=":          "COMPARISON",
+	"LIKE":        "COMPARISON",
+	"NOT_LIKE":    "COMPARISON",
+	"ILIKE":       "COMPARISON",
+	"NOT_ILIKE":   "COMPARISON",
+}
+
+// WindowFunctions - SSOT for window function names
+var WindowFunctions = map[string]bool{
+	"ROW NUMBER": true,
+	"RANK":       true,
+	"DENSE RANK": true,
+	"LAG":        true,
+	"LEAD":       true,
+	"NTILE":      true,
+}
+
+// WindowFunctionPrefixes - for two-word detection
+var WindowFunctionPrefixes = map[string]string{
+	"ROW":   "NUMBER",
+	"DENSE": "RANK",
+}
+
+// IsWindowFunction checks if name is window function
+func IsWindowFunction(name string) bool {
+	return WindowFunctions[strings.ToUpper(name)]
+}
+
+// GetWindowFunctionSuffix returns second word if prefix matches
+func GetWindowFunctionSuffix(prefix string) (string, bool) {
+	suffix, ok := WindowFunctionPrefixes[strings.ToUpper(prefix)]
+	return suffix, ok
+}
+
+// WindowFunctionHasField checks if function takes a field argument (LAG, LEAD)
+func WindowFunctionHasField(name string) bool {
+	upper := strings.ToUpper(name)
+	return upper == "LAG" || upper == "LEAD"
+}
+
+// WindowFunctionHasBuckets checks if function takes bucket count (NTILE)
+func WindowFunctionHasBuckets(name string) bool {
+	return strings.ToUpper(name) == "NTILE"
+}
+
+// GetOperatorCategory returns the category for an operator
+func GetOperatorCategory(op string) string {
+	return OperatorCategories[strings.ToUpper(op)]
+}
+
+// IsArithmeticOperator checks if token is arithmetic operator
+func IsArithmeticOperator(op string) bool {
+    return ArithmeticOperators[op]
+}
+
+// IsComparisonOperator checks if token is comparison operator
+func IsComparisonOperator(op string) bool {
+    upper := strings.ToUpper(op)
+    // Check explicit operators not in map (parsed as multi-word)
+    if upper == "IS" || upper == "NOT" {
+        return true
+    }
+    _, exists := OperatorMap["PostgreSQL"][upper]
+    return exists
 }

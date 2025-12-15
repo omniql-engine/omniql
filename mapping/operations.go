@@ -1,5 +1,7 @@
 package mapping
 
+import "strings"
+
 // OperationGroups maps each operation to its group (CRUD, DDL, DQL, TCL, DCL)
 // Used by parser to route operations dynamically - no hardcoded lists!
 var OperationGroups = map[string]string{
@@ -69,11 +71,11 @@ var OperationGroups = map[string]string{
 	"MAX":   "DQL",
 	
 	// Query modifiers
-	"GROUP BY": "DQL",
-	"ORDER BY": "DQL",
-	"HAVING":   "DQL",
+	// "GROUP BY": "DQL",
+	// "ORDER BY": "DQL",
+	// "HAVING":   "DQL",
 	// "DISTINCT": "DQL",
-	"LIMIT":    "DQL",
+	// "LIMIT":    "DQL",
 	// "OFFSET":   "DQL",
 	
 	// Set operations
@@ -95,7 +97,7 @@ var OperationGroups = map[string]string{
 	"CTE":      "DQL", // Common Table Expressions (WITH)
 	"SUBQUERY": "DQL", // Nested SELECT
 	"EXISTS":   "DQL", // Existence check
-	"LIKE":     "DQL", // Pattern matching
+	// "LIKE":     "DQL", // Pattern matching
 	"CASE":     "DQL", // Conditional logic
 	
 	// ========== GROUP 4: TCL (8 operations) ==========
@@ -177,7 +179,7 @@ var OperationSubTypes = map[string]string{
 	"CTE":      "ADVANCED",
 	"SUBQUERY": "ADVANCED",
 	"EXISTS":   "ADVANCED",
-	"LIKE":     "PATTERN",
+	// "LIKE":     "PATTERN",
 	"CASE":     "CONDITIONAL",
 	
 	// TCL Sub-types
@@ -478,6 +480,7 @@ var OperationMap = map[string]map[string]string{
 		
 		// ========== GROUP 2: DDL Operations ==========
 		"CREATE TABLE":    "createCollection",  // MongoDB: collection = table
+		"CREATE COLLECTION": "createCollection",
 		"ALTER TABLE":     "modifyCollection",
 		"DROP TABLE":      "dropCollection",
 		"TRUNCATE TABLE":  "deleteMany",
@@ -955,4 +958,9 @@ func init() {
         }
     }
 	
+}
+
+// IsAggregate checks if operation is an aggregate function
+func IsAggregate(op string) bool {
+    return OperationSubTypes[strings.ToUpper(op)] == "AGGREGATE"
 }

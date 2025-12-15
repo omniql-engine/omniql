@@ -119,6 +119,414 @@ func (*UniversalQuery_Document) isUniversalQuery_QueryType() {}
 
 func (*UniversalQuery_KeyValue) isUniversalQuery_QueryType() {}
 
+type Expression struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Type     string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"` // BINARY, FUNCTION, CASEWHEN, FIELD, LITERAL, WINDOW
+	Position int32                  `protobuf:"varint,2,opt,name=position,proto3" json:"position,omitempty"`
+	// For leaf nodes (FIELD, LITERAL)
+	Value string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	// For BINARY expressions
+	Left     *Expression `protobuf:"bytes,4,opt,name=left,proto3" json:"left,omitempty"`
+	Operator string      `protobuf:"bytes,5,opt,name=operator,proto3" json:"operator,omitempty"`
+	Right    *Expression `protobuf:"bytes,6,opt,name=right,proto3" json:"right,omitempty"`
+	// For FUNCTION calls
+	FunctionName string        `protobuf:"bytes,7,opt,name=function_name,json=functionName,proto3" json:"function_name,omitempty"`
+	FunctionArgs []*Expression `protobuf:"bytes,8,rep,name=function_args,json=functionArgs,proto3" json:"function_args,omitempty"`
+	// For CASEWHEN
+	CaseConditions []*CaseCondition `protobuf:"bytes,9,rep,name=case_conditions,json=caseConditions,proto3" json:"case_conditions,omitempty"`
+	CaseElse       *Expression      `protobuf:"bytes,10,opt,name=case_else,json=caseElse,proto3" json:"case_else,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *Expression) Reset() {
+	*x = Expression{}
+	mi := &file_utilities_proto_events_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Expression) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Expression) ProtoMessage() {}
+
+func (x *Expression) ProtoReflect() protoreflect.Message {
+	mi := &file_utilities_proto_events_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Expression.ProtoReflect.Descriptor instead.
+func (*Expression) Descriptor() ([]byte, []int) {
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Expression) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Expression) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
+func (x *Expression) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *Expression) GetLeft() *Expression {
+	if x != nil {
+		return x.Left
+	}
+	return nil
+}
+
+func (x *Expression) GetOperator() string {
+	if x != nil {
+		return x.Operator
+	}
+	return ""
+}
+
+func (x *Expression) GetRight() *Expression {
+	if x != nil {
+		return x.Right
+	}
+	return nil
+}
+
+func (x *Expression) GetFunctionName() string {
+	if x != nil {
+		return x.FunctionName
+	}
+	return ""
+}
+
+func (x *Expression) GetFunctionArgs() []*Expression {
+	if x != nil {
+		return x.FunctionArgs
+	}
+	return nil
+}
+
+func (x *Expression) GetCaseConditions() []*CaseCondition {
+	if x != nil {
+		return x.CaseConditions
+	}
+	return nil
+}
+
+func (x *Expression) GetCaseElse() *Expression {
+	if x != nil {
+		return x.CaseElse
+	}
+	return nil
+}
+
+type QueryCondition struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FieldExpr     *Expression            `protobuf:"bytes,1,opt,name=field_expr,json=fieldExpr,proto3" json:"field_expr,omitempty"`    // Left side
+	Operator      string                 `protobuf:"bytes,2,opt,name=operator,proto3" json:"operator,omitempty"`                       // =, !=, >, <, IN, BETWEEN, etc.
+	ValueExpr     *Expression            `protobuf:"bytes,3,opt,name=value_expr,json=valueExpr,proto3" json:"value_expr,omitempty"`    // Right side
+	Value2Expr    *Expression            `protobuf:"bytes,4,opt,name=value2_expr,json=value2Expr,proto3" json:"value2_expr,omitempty"` // For BETWEEN second value
+	ValuesExpr    []*Expression          `protobuf:"bytes,5,rep,name=values_expr,json=valuesExpr,proto3" json:"values_expr,omitempty"` // For IN operator values
+	Logic         string                 `protobuf:"bytes,6,opt,name=logic,proto3" json:"logic,omitempty"`                             // AND, OR
+	Nested        []*QueryCondition      `protobuf:"bytes,7,rep,name=nested,proto3" json:"nested,omitempty"`                           // For parentheses grouping
+	Position      int32                  `protobuf:"varint,8,opt,name=position,proto3" json:"position,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryCondition) Reset() {
+	*x = QueryCondition{}
+	mi := &file_utilities_proto_events_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryCondition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryCondition) ProtoMessage() {}
+
+func (x *QueryCondition) ProtoReflect() protoreflect.Message {
+	mi := &file_utilities_proto_events_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryCondition.ProtoReflect.Descriptor instead.
+func (*QueryCondition) Descriptor() ([]byte, []int) {
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *QueryCondition) GetFieldExpr() *Expression {
+	if x != nil {
+		return x.FieldExpr
+	}
+	return nil
+}
+
+func (x *QueryCondition) GetOperator() string {
+	if x != nil {
+		return x.Operator
+	}
+	return ""
+}
+
+func (x *QueryCondition) GetValueExpr() *Expression {
+	if x != nil {
+		return x.ValueExpr
+	}
+	return nil
+}
+
+func (x *QueryCondition) GetValue2Expr() *Expression {
+	if x != nil {
+		return x.Value2Expr
+	}
+	return nil
+}
+
+func (x *QueryCondition) GetValuesExpr() []*Expression {
+	if x != nil {
+		return x.ValuesExpr
+	}
+	return nil
+}
+
+func (x *QueryCondition) GetLogic() string {
+	if x != nil {
+		return x.Logic
+	}
+	return ""
+}
+
+func (x *QueryCondition) GetNested() []*QueryCondition {
+	if x != nil {
+		return x.Nested
+	}
+	return nil
+}
+
+func (x *QueryCondition) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
+type CaseCondition struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Condition     *QueryCondition        `protobuf:"bytes,1,opt,name=condition,proto3" json:"condition,omitempty"`               // WHEN condition
+	ThenExpr      *Expression            `protobuf:"bytes,2,opt,name=then_expr,json=thenExpr,proto3" json:"then_expr,omitempty"` // THEN value
+	Position      int32                  `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CaseCondition) Reset() {
+	*x = CaseCondition{}
+	mi := &file_utilities_proto_events_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CaseCondition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CaseCondition) ProtoMessage() {}
+
+func (x *CaseCondition) ProtoReflect() protoreflect.Message {
+	mi := &file_utilities_proto_events_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CaseCondition.ProtoReflect.Descriptor instead.
+func (*CaseCondition) Descriptor() ([]byte, []int) {
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CaseCondition) GetCondition() *QueryCondition {
+	if x != nil {
+		return x.Condition
+	}
+	return nil
+}
+
+func (x *CaseCondition) GetThenExpr() *Expression {
+	if x != nil {
+		return x.ThenExpr
+	}
+	return nil
+}
+
+func (x *CaseCondition) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
+type QueryField struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NameExpr      *Expression            `protobuf:"bytes,1,opt,name=name_expr,json=nameExpr,proto3" json:"name_expr,omitempty"`    // Field name
+	ValueExpr     *Expression            `protobuf:"bytes,2,opt,name=value_expr,json=valueExpr,proto3" json:"value_expr,omitempty"` // Field value
+	Constraints   []string               `protobuf:"bytes,3,rep,name=constraints,proto3" json:"constraints,omitempty"`              // DDL: UNIQUE, NOT_NULL, PRIMARY_KEY
+	Position      int32                  `protobuf:"varint,4,opt,name=position,proto3" json:"position,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QueryField) Reset() {
+	*x = QueryField{}
+	mi := &file_utilities_proto_events_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QueryField) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryField) ProtoMessage() {}
+
+func (x *QueryField) ProtoReflect() protoreflect.Message {
+	mi := &file_utilities_proto_events_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryField.ProtoReflect.Descriptor instead.
+func (*QueryField) Descriptor() ([]byte, []int) {
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *QueryField) GetNameExpr() *Expression {
+	if x != nil {
+		return x.NameExpr
+	}
+	return nil
+}
+
+func (x *QueryField) GetValueExpr() *Expression {
+	if x != nil {
+		return x.ValueExpr
+	}
+	return nil
+}
+
+func (x *QueryField) GetConstraints() []string {
+	if x != nil {
+		return x.Constraints
+	}
+	return nil
+}
+
+func (x *QueryField) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
+type SelectColumn struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExpressionObj *Expression            `protobuf:"bytes,1,opt,name=expression_obj,json=expressionObj,proto3" json:"expression_obj,omitempty"` // The expression
+	Alias         string                 `protobuf:"bytes,2,opt,name=alias,proto3" json:"alias,omitempty"`                                      // Optional alias
+	Position      int32                  `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SelectColumn) Reset() {
+	*x = SelectColumn{}
+	mi := &file_utilities_proto_events_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SelectColumn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SelectColumn) ProtoMessage() {}
+
+func (x *SelectColumn) ProtoReflect() protoreflect.Message {
+	mi := &file_utilities_proto_events_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SelectColumn.ProtoReflect.Descriptor instead.
+func (*SelectColumn) Descriptor() ([]byte, []int) {
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SelectColumn) GetExpressionObj() *Expression {
+	if x != nil {
+		return x.ExpressionObj
+	}
+	return nil
+}
+
+func (x *SelectColumn) GetAlias() string {
+	if x != nil {
+		return x.Alias
+	}
+	return ""
+}
+
+func (x *SelectColumn) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
 type RelationalQuery struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Operation        string                 `protobuf:"bytes,1,opt,name=operation,proto3" json:"operation,omitempty"`
@@ -127,45 +535,45 @@ type RelationalQuery struct {
 	Fields           []*QueryField          `protobuf:"bytes,4,rep,name=fields,proto3" json:"fields,omitempty"`
 	Limit            int32                  `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
 	Offset           int32                  `protobuf:"varint,6,opt,name=offset,proto3" json:"offset,omitempty"`
-	Distinct         bool                   `protobuf:"varint,34,opt,name=distinct,proto3" json:"distinct,omitempty"`
-	TransactionId    string                 `protobuf:"bytes,35,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
-	Joins            []*JoinClause          `protobuf:"bytes,7,rep,name=joins,proto3" json:"joins,omitempty"`
-	Aggregate        *AggregateClause       `protobuf:"bytes,8,opt,name=aggregate,proto3" json:"aggregate,omitempty"`
-	GroupBy          []string               `protobuf:"bytes,9,rep,name=group_by,json=groupBy,proto3" json:"group_by,omitempty"`
-	Having           []*QueryCondition      `protobuf:"bytes,10,rep,name=having,proto3" json:"having,omitempty"`
-	OrderBy          []*OrderByClause       `protobuf:"bytes,11,rep,name=order_by,json=orderBy,proto3" json:"order_by,omitempty"`
-	SavepointName    string                 `protobuf:"bytes,12,opt,name=savepoint_name,json=savepointName,proto3" json:"savepoint_name,omitempty"`
-	Permissions      []string               `protobuf:"bytes,13,rep,name=permissions,proto3" json:"permissions,omitempty"`
-	PermissionTarget string                 `protobuf:"bytes,14,opt,name=permission_target,json=permissionTarget,proto3" json:"permission_target,omitempty"`
-	RoleName         string                 `protobuf:"bytes,15,opt,name=role_name,json=roleName,proto3" json:"role_name,omitempty"`
-	WindowFunctions  []*WindowClause        `protobuf:"bytes,16,rep,name=window_functions,json=windowFunctions,proto3" json:"window_functions,omitempty"`
-	Cte              *CTEClause             `protobuf:"bytes,17,opt,name=cte,proto3" json:"cte,omitempty"`
-	Subquery         *SubqueryClause        `protobuf:"bytes,18,opt,name=subquery,proto3" json:"subquery,omitempty"`
-	Pattern          string                 `protobuf:"bytes,19,opt,name=pattern,proto3" json:"pattern,omitempty"`
-	CaseWhen         *CaseClause            `protobuf:"bytes,20,opt,name=case_when,json=caseWhen,proto3" json:"case_when,omitempty"`
-	IsolationLevel   string                 `protobuf:"bytes,21,opt,name=isolation_level,json=isolationLevel,proto3" json:"isolation_level,omitempty"`
-	ReadOnly         bool                   `protobuf:"varint,22,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
-	Upsert           *UpsertClause          `protobuf:"bytes,23,opt,name=upsert,proto3" json:"upsert,omitempty"`
-	BulkData         []*BulkInsertRow       `protobuf:"bytes,24,rep,name=bulk_data,json=bulkData,proto3" json:"bulk_data,omitempty"`
-	ViewName         string                 `protobuf:"bytes,25,opt,name=view_name,json=viewName,proto3" json:"view_name,omitempty"`
-	ViewQuery        string                 `protobuf:"bytes,26,opt,name=view_query,json=viewQuery,proto3" json:"view_query,omitempty"`
-	DatabaseName     string                 `protobuf:"bytes,27,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
-	NewName          string                 `protobuf:"bytes,28,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`
-	UserName         string                 `protobuf:"bytes,29,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
-	Password         string                 `protobuf:"bytes,30,opt,name=password,proto3" json:"password,omitempty"`
-	UserRoles        []string               `protobuf:"bytes,31,rep,name=user_roles,json=userRoles,proto3" json:"user_roles,omitempty"`
-	SetOperation     *SetOperationClause    `protobuf:"bytes,32,opt,name=set_operation,json=setOperation,proto3" json:"set_operation,omitempty"`
-	Columns          []string               `protobuf:"bytes,33,rep,name=columns,proto3" json:"columns,omitempty"`
-	SelectColumns    []*SelectColumn        `protobuf:"bytes,36,rep,name=select_columns,json=selectColumns,proto3" json:"select_columns,omitempty"`
-	SessionId        string                 `protobuf:"bytes,37,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Sql              string                 `protobuf:"bytes,38,opt,name=sql,proto3" json:"sql,omitempty"`
+	Distinct         bool                   `protobuf:"varint,7,opt,name=distinct,proto3" json:"distinct,omitempty"`
+	TransactionId    string                 `protobuf:"bytes,8,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
+	Joins            []*JoinClause          `protobuf:"bytes,9,rep,name=joins,proto3" json:"joins,omitempty"`
+	Aggregate        *AggregateClause       `protobuf:"bytes,10,opt,name=aggregate,proto3" json:"aggregate,omitempty"`
+	GroupBy          []*Expression          `protobuf:"bytes,11,rep,name=group_by,json=groupBy,proto3" json:"group_by,omitempty"` // 100% TrueAST
+	Having           []*QueryCondition      `protobuf:"bytes,12,rep,name=having,proto3" json:"having,omitempty"`
+	OrderBy          []*OrderByClause       `protobuf:"bytes,13,rep,name=order_by,json=orderBy,proto3" json:"order_by,omitempty"`
+	SavepointName    string                 `protobuf:"bytes,14,opt,name=savepoint_name,json=savepointName,proto3" json:"savepoint_name,omitempty"`
+	Permissions      []string               `protobuf:"bytes,15,rep,name=permissions,proto3" json:"permissions,omitempty"`
+	PermissionTarget string                 `protobuf:"bytes,16,opt,name=permission_target,json=permissionTarget,proto3" json:"permission_target,omitempty"`
+	RoleName         string                 `protobuf:"bytes,17,opt,name=role_name,json=roleName,proto3" json:"role_name,omitempty"`
+	WindowFunctions  []*WindowClause        `protobuf:"bytes,18,rep,name=window_functions,json=windowFunctions,proto3" json:"window_functions,omitempty"`
+	Cte              *CTEClause             `protobuf:"bytes,19,opt,name=cte,proto3" json:"cte,omitempty"`
+	Subquery         *SubqueryClause        `protobuf:"bytes,20,opt,name=subquery,proto3" json:"subquery,omitempty"`
+	Pattern          string                 `protobuf:"bytes,21,opt,name=pattern,proto3" json:"pattern,omitempty"`
+	IsolationLevel   string                 `protobuf:"bytes,22,opt,name=isolation_level,json=isolationLevel,proto3" json:"isolation_level,omitempty"`
+	ReadOnly         bool                   `protobuf:"varint,23,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	Upsert           *UpsertClause          `protobuf:"bytes,24,opt,name=upsert,proto3" json:"upsert,omitempty"`
+	BulkData         []*BulkInsertRow       `protobuf:"bytes,25,rep,name=bulk_data,json=bulkData,proto3" json:"bulk_data,omitempty"`
+	ViewName         string                 `protobuf:"bytes,26,opt,name=view_name,json=viewName,proto3" json:"view_name,omitempty"`
+	ViewQuery        *RelationalQuery       `protobuf:"bytes,27,opt,name=view_query,json=viewQuery,proto3" json:"view_query,omitempty"` // 100% TrueAST
+	DatabaseName     string                 `protobuf:"bytes,28,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
+	NewName          string                 `protobuf:"bytes,29,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`
+	UserName         string                 `protobuf:"bytes,30,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	Password         string                 `protobuf:"bytes,31,opt,name=password,proto3" json:"password,omitempty"`
+	UserRoles        []string               `protobuf:"bytes,32,rep,name=user_roles,json=userRoles,proto3" json:"user_roles,omitempty"`
+	SetOperation     *SetOperationClause    `protobuf:"bytes,33,opt,name=set_operation,json=setOperation,proto3" json:"set_operation,omitempty"`
+	Columns          []*Expression          `protobuf:"bytes,34,rep,name=columns,proto3" json:"columns,omitempty"` // 100% TrueAST
+	SelectColumns    []*SelectColumn        `protobuf:"bytes,35,rep,name=select_columns,json=selectColumns,proto3" json:"select_columns,omitempty"`
+	SessionId        string                 `protobuf:"bytes,36,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Sql              string                 `protobuf:"bytes,37,opt,name=sql,proto3" json:"sql,omitempty"`
+	AlterAction      string                 `protobuf:"bytes,38,opt,name=alter_action,json=alterAction,proto3" json:"alter_action,omitempty"` // ADD_COLUMN, DROP_COLUMN, RENAME_COLUMN
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RelationalQuery) Reset() {
 	*x = RelationalQuery{}
-	mi := &file_utilities_proto_events_proto_msgTypes[1]
+	mi := &file_utilities_proto_events_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -177,7 +585,7 @@ func (x *RelationalQuery) String() string {
 func (*RelationalQuery) ProtoMessage() {}
 
 func (x *RelationalQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[1]
+	mi := &file_utilities_proto_events_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -190,7 +598,7 @@ func (x *RelationalQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelationalQuery.ProtoReflect.Descriptor instead.
 func (*RelationalQuery) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{1}
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RelationalQuery) GetOperation() string {
@@ -263,7 +671,7 @@ func (x *RelationalQuery) GetAggregate() *AggregateClause {
 	return nil
 }
 
-func (x *RelationalQuery) GetGroupBy() []string {
+func (x *RelationalQuery) GetGroupBy() []*Expression {
 	if x != nil {
 		return x.GroupBy
 	}
@@ -340,13 +748,6 @@ func (x *RelationalQuery) GetPattern() string {
 	return ""
 }
 
-func (x *RelationalQuery) GetCaseWhen() *CaseClause {
-	if x != nil {
-		return x.CaseWhen
-	}
-	return nil
-}
-
 func (x *RelationalQuery) GetIsolationLevel() string {
 	if x != nil {
 		return x.IsolationLevel
@@ -382,11 +783,11 @@ func (x *RelationalQuery) GetViewName() string {
 	return ""
 }
 
-func (x *RelationalQuery) GetViewQuery() string {
+func (x *RelationalQuery) GetViewQuery() *RelationalQuery {
 	if x != nil {
 		return x.ViewQuery
 	}
-	return ""
+	return nil
 }
 
 func (x *RelationalQuery) GetDatabaseName() string {
@@ -431,7 +832,7 @@ func (x *RelationalQuery) GetSetOperation() *SetOperationClause {
 	return nil
 }
 
-func (x *RelationalQuery) GetColumns() []string {
+func (x *RelationalQuery) GetColumns() []*Expression {
 	if x != nil {
 		return x.Columns
 	}
@@ -459,6 +860,13 @@ func (x *RelationalQuery) GetSql() string {
 	return ""
 }
 
+func (x *RelationalQuery) GetAlterAction() string {
+	if x != nil {
+		return x.AlterAction
+	}
+	return ""
+}
+
 type DocumentQuery struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Operation        string                 `protobuf:"bytes,1,opt,name=operation,proto3" json:"operation,omitempty"`
@@ -469,7 +877,7 @@ type DocumentQuery struct {
 	Skip             int32                  `protobuf:"varint,6,opt,name=skip,proto3" json:"skip,omitempty"`
 	Joins            []*JoinClause          `protobuf:"bytes,7,rep,name=joins,proto3" json:"joins,omitempty"`
 	Aggregate        *AggregateClause       `protobuf:"bytes,8,opt,name=aggregate,proto3" json:"aggregate,omitempty"`
-	GroupBy          []string               `protobuf:"bytes,9,rep,name=group_by,json=groupBy,proto3" json:"group_by,omitempty"`
+	GroupBy          []*Expression          `protobuf:"bytes,9,rep,name=group_by,json=groupBy,proto3" json:"group_by,omitempty"` // 100% TrueAST
 	OrderBy          []*OrderByClause       `protobuf:"bytes,10,rep,name=order_by,json=orderBy,proto3" json:"order_by,omitempty"`
 	SavepointName    string                 `protobuf:"bytes,11,opt,name=savepoint_name,json=savepointName,proto3" json:"savepoint_name,omitempty"`
 	Permissions      []string               `protobuf:"bytes,12,rep,name=permissions,proto3" json:"permissions,omitempty"`
@@ -477,32 +885,31 @@ type DocumentQuery struct {
 	RoleName         string                 `protobuf:"bytes,14,opt,name=role_name,json=roleName,proto3" json:"role_name,omitempty"`
 	WindowFunctions  []*WindowClause        `protobuf:"bytes,15,rep,name=window_functions,json=windowFunctions,proto3" json:"window_functions,omitempty"`
 	Pattern          string                 `protobuf:"bytes,16,opt,name=pattern,proto3" json:"pattern,omitempty"`
-	CaseWhen         *CaseClause            `protobuf:"bytes,17,opt,name=case_when,json=caseWhen,proto3" json:"case_when,omitempty"`
-	IsolationLevel   string                 `protobuf:"bytes,18,opt,name=isolation_level,json=isolationLevel,proto3" json:"isolation_level,omitempty"`
-	ReadOnly         bool                   `protobuf:"varint,19,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
-	Upsert           *UpsertClause          `protobuf:"bytes,20,opt,name=upsert,proto3" json:"upsert,omitempty"`
-	BulkData         []*BulkInsertRow       `protobuf:"bytes,21,rep,name=bulk_data,json=bulkData,proto3" json:"bulk_data,omitempty"`
-	ViewName         string                 `protobuf:"bytes,22,opt,name=view_name,json=viewName,proto3" json:"view_name,omitempty"`
-	ViewQuery        string                 `protobuf:"bytes,23,opt,name=view_query,json=viewQuery,proto3" json:"view_query,omitempty"`
-	DatabaseName     string                 `protobuf:"bytes,24,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
-	UserName         string                 `protobuf:"bytes,25,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
-	Password         string                 `protobuf:"bytes,26,opt,name=password,proto3" json:"password,omitempty"`
-	UserRoles        []string               `protobuf:"bytes,27,rep,name=user_roles,json=userRoles,proto3" json:"user_roles,omitempty"`
-	NewName          string                 `protobuf:"bytes,28,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`
-	SetOperation     *SetOperationClause    `protobuf:"bytes,29,opt,name=set_operation,json=setOperation,proto3" json:"set_operation,omitempty"`
-	Columns          []string               `protobuf:"bytes,30,rep,name=columns,proto3" json:"columns,omitempty"`
-	SelectColumns    []*SelectColumn        `protobuf:"bytes,31,rep,name=select_columns,json=selectColumns,proto3" json:"select_columns,omitempty"`
-	SessionId        string                 `protobuf:"bytes,32,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Having           []*QueryCondition      `protobuf:"bytes,33,rep,name=having,proto3" json:"having,omitempty"`
-	Distinct         bool                   `protobuf:"varint,34,opt,name=distinct,proto3" json:"distinct,omitempty"`
-	Query            string                 `protobuf:"bytes,35,opt,name=query,proto3" json:"query,omitempty"`
+	IsolationLevel   string                 `protobuf:"bytes,17,opt,name=isolation_level,json=isolationLevel,proto3" json:"isolation_level,omitempty"`
+	ReadOnly         bool                   `protobuf:"varint,18,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	Upsert           *UpsertClause          `protobuf:"bytes,19,opt,name=upsert,proto3" json:"upsert,omitempty"`
+	BulkData         []*BulkInsertRow       `protobuf:"bytes,20,rep,name=bulk_data,json=bulkData,proto3" json:"bulk_data,omitempty"`
+	ViewName         string                 `protobuf:"bytes,21,opt,name=view_name,json=viewName,proto3" json:"view_name,omitempty"`
+	ViewQuery        *DocumentQuery         `protobuf:"bytes,22,opt,name=view_query,json=viewQuery,proto3" json:"view_query,omitempty"` // 100% TrueAST
+	DatabaseName     string                 `protobuf:"bytes,23,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
+	UserName         string                 `protobuf:"bytes,24,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	Password         string                 `protobuf:"bytes,25,opt,name=password,proto3" json:"password,omitempty"`
+	UserRoles        []string               `protobuf:"bytes,26,rep,name=user_roles,json=userRoles,proto3" json:"user_roles,omitempty"`
+	NewName          string                 `protobuf:"bytes,27,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`
+	SetOperation     *SetOperationClause    `protobuf:"bytes,28,opt,name=set_operation,json=setOperation,proto3" json:"set_operation,omitempty"`
+	Columns          []*Expression          `protobuf:"bytes,29,rep,name=columns,proto3" json:"columns,omitempty"` // 100% TrueAST
+	SelectColumns    []*SelectColumn        `protobuf:"bytes,30,rep,name=select_columns,json=selectColumns,proto3" json:"select_columns,omitempty"`
+	SessionId        string                 `protobuf:"bytes,31,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Having           []*QueryCondition      `protobuf:"bytes,32,rep,name=having,proto3" json:"having,omitempty"`
+	Distinct         bool                   `protobuf:"varint,33,opt,name=distinct,proto3" json:"distinct,omitempty"`
+	Query            string                 `protobuf:"bytes,34,opt,name=query,proto3" json:"query,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
 
 func (x *DocumentQuery) Reset() {
 	*x = DocumentQuery{}
-	mi := &file_utilities_proto_events_proto_msgTypes[2]
+	mi := &file_utilities_proto_events_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -514,7 +921,7 @@ func (x *DocumentQuery) String() string {
 func (*DocumentQuery) ProtoMessage() {}
 
 func (x *DocumentQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[2]
+	mi := &file_utilities_proto_events_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -527,7 +934,7 @@ func (x *DocumentQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocumentQuery.ProtoReflect.Descriptor instead.
 func (*DocumentQuery) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{2}
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DocumentQuery) GetOperation() string {
@@ -586,7 +993,7 @@ func (x *DocumentQuery) GetAggregate() *AggregateClause {
 	return nil
 }
 
-func (x *DocumentQuery) GetGroupBy() []string {
+func (x *DocumentQuery) GetGroupBy() []*Expression {
 	if x != nil {
 		return x.GroupBy
 	}
@@ -642,13 +1049,6 @@ func (x *DocumentQuery) GetPattern() string {
 	return ""
 }
 
-func (x *DocumentQuery) GetCaseWhen() *CaseClause {
-	if x != nil {
-		return x.CaseWhen
-	}
-	return nil
-}
-
 func (x *DocumentQuery) GetIsolationLevel() string {
 	if x != nil {
 		return x.IsolationLevel
@@ -684,11 +1084,11 @@ func (x *DocumentQuery) GetViewName() string {
 	return ""
 }
 
-func (x *DocumentQuery) GetViewQuery() string {
+func (x *DocumentQuery) GetViewQuery() *DocumentQuery {
 	if x != nil {
 		return x.ViewQuery
 	}
-	return ""
+	return nil
 }
 
 func (x *DocumentQuery) GetDatabaseName() string {
@@ -733,7 +1133,7 @@ func (x *DocumentQuery) GetSetOperation() *SetOperationClause {
 	return nil
 }
 
-func (x *DocumentQuery) GetColumns() []string {
+func (x *DocumentQuery) GetColumns() []*Expression {
 	if x != nil {
 		return x.Columns
 	}
@@ -789,7 +1189,7 @@ type KeyValueQuery struct {
 
 func (x *KeyValueQuery) Reset() {
 	*x = KeyValueQuery{}
-	mi := &file_utilities_proto_events_proto_msgTypes[3]
+	mi := &file_utilities_proto_events_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -801,7 +1201,7 @@ func (x *KeyValueQuery) String() string {
 func (*KeyValueQuery) ProtoMessage() {}
 
 func (x *KeyValueQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[3]
+	mi := &file_utilities_proto_events_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -814,7 +1214,7 @@ func (x *KeyValueQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyValueQuery.ProtoReflect.Descriptor instead.
 func (*KeyValueQuery) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{3}
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *KeyValueQuery) GetCommand() string {
@@ -869,7 +1269,7 @@ type KeyValuePair struct {
 
 func (x *KeyValuePair) Reset() {
 	*x = KeyValuePair{}
-	mi := &file_utilities_proto_events_proto_msgTypes[4]
+	mi := &file_utilities_proto_events_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -881,7 +1281,7 @@ func (x *KeyValuePair) String() string {
 func (*KeyValuePair) ProtoMessage() {}
 
 func (x *KeyValuePair) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[4]
+	mi := &file_utilities_proto_events_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -894,7 +1294,7 @@ func (x *KeyValuePair) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyValuePair.ProtoReflect.Descriptor instead.
 func (*KeyValuePair) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{4}
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *KeyValuePair) GetKey() string {
@@ -911,406 +1311,13 @@ func (x *KeyValuePair) GetValue() string {
 	return ""
 }
 
-type QueryCondition struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	Operator      string                 `protobuf:"bytes,2,opt,name=operator,proto3" json:"operator,omitempty"`
-	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *QueryCondition) Reset() {
-	*x = QueryCondition{}
-	mi := &file_utilities_proto_events_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *QueryCondition) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*QueryCondition) ProtoMessage() {}
-
-func (x *QueryCondition) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use QueryCondition.ProtoReflect.Descriptor instead.
-func (*QueryCondition) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *QueryCondition) GetField() string {
-	if x != nil {
-		return x.Field
-	}
-	return ""
-}
-
-func (x *QueryCondition) GetOperator() string {
-	if x != nil {
-		return x.Operator
-	}
-	return ""
-}
-
-func (x *QueryCondition) GetValue() string {
-	if x != nil {
-		return x.Value
-	}
-	return ""
-}
-
-type QueryField struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	Name        string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Value       string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
-	Constraints []string               `protobuf:"bytes,3,rep,name=constraints,proto3" json:"constraints,omitempty"`
-	// Types that are valid to be assigned to FieldType:
-	//
-	//	*QueryField_LiteralValue
-	//	*QueryField_Expression
-	FieldType     isQueryField_FieldType `protobuf_oneof:"field_type"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *QueryField) Reset() {
-	*x = QueryField{}
-	mi := &file_utilities_proto_events_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *QueryField) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*QueryField) ProtoMessage() {}
-
-func (x *QueryField) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use QueryField.ProtoReflect.Descriptor instead.
-func (*QueryField) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *QueryField) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *QueryField) GetValue() string {
-	if x != nil {
-		return x.Value
-	}
-	return ""
-}
-
-func (x *QueryField) GetConstraints() []string {
-	if x != nil {
-		return x.Constraints
-	}
-	return nil
-}
-
-func (x *QueryField) GetFieldType() isQueryField_FieldType {
-	if x != nil {
-		return x.FieldType
-	}
-	return nil
-}
-
-func (x *QueryField) GetLiteralValue() string {
-	if x != nil {
-		if x, ok := x.FieldType.(*QueryField_LiteralValue); ok {
-			return x.LiteralValue
-		}
-	}
-	return ""
-}
-
-func (x *QueryField) GetExpression() *FieldExpression {
-	if x != nil {
-		if x, ok := x.FieldType.(*QueryField_Expression); ok {
-			return x.Expression
-		}
-	}
-	return nil
-}
-
-type isQueryField_FieldType interface {
-	isQueryField_FieldType()
-}
-
-type QueryField_LiteralValue struct {
-	LiteralValue string `protobuf:"bytes,4,opt,name=literal_value,json=literalValue,proto3,oneof"`
-}
-
-type QueryField_Expression struct {
-	Expression *FieldExpression `protobuf:"bytes,5,opt,name=expression,proto3,oneof"`
-}
-
-func (*QueryField_LiteralValue) isQueryField_FieldType() {}
-
-func (*QueryField_Expression) isQueryField_FieldType() {}
-
-type FieldExpression struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ExpressionType string                 `protobuf:"bytes,1,opt,name=expression_type,json=expressionType,proto3" json:"expression_type,omitempty"`
-	LeftOperand    string                 `protobuf:"bytes,2,opt,name=left_operand,json=leftOperand,proto3" json:"left_operand,omitempty"`
-	Operator       string                 `protobuf:"bytes,3,opt,name=operator,proto3" json:"operator,omitempty"`
-	RightOperand   string                 `protobuf:"bytes,4,opt,name=right_operand,json=rightOperand,proto3" json:"right_operand,omitempty"`
-	LeftIsField    bool                   `protobuf:"varint,5,opt,name=left_is_field,json=leftIsField,proto3" json:"left_is_field,omitempty"`
-	RightIsField   bool                   `protobuf:"varint,6,opt,name=right_is_field,json=rightIsField,proto3" json:"right_is_field,omitempty"`
-	FunctionName   string                 `protobuf:"bytes,7,opt,name=function_name,json=functionName,proto3" json:"function_name,omitempty"`
-	FunctionArgs   []string               `protobuf:"bytes,8,rep,name=function_args,json=functionArgs,proto3" json:"function_args,omitempty"`
-	CaseConditions []*CaseCondition       `protobuf:"bytes,9,rep,name=case_conditions,json=caseConditions,proto3" json:"case_conditions,omitempty"`
-	CaseElse       string                 `protobuf:"bytes,10,opt,name=case_else,json=caseElse,proto3" json:"case_else,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *FieldExpression) Reset() {
-	*x = FieldExpression{}
-	mi := &file_utilities_proto_events_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *FieldExpression) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FieldExpression) ProtoMessage() {}
-
-func (x *FieldExpression) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FieldExpression.ProtoReflect.Descriptor instead.
-func (*FieldExpression) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *FieldExpression) GetExpressionType() string {
-	if x != nil {
-		return x.ExpressionType
-	}
-	return ""
-}
-
-func (x *FieldExpression) GetLeftOperand() string {
-	if x != nil {
-		return x.LeftOperand
-	}
-	return ""
-}
-
-func (x *FieldExpression) GetOperator() string {
-	if x != nil {
-		return x.Operator
-	}
-	return ""
-}
-
-func (x *FieldExpression) GetRightOperand() string {
-	if x != nil {
-		return x.RightOperand
-	}
-	return ""
-}
-
-func (x *FieldExpression) GetLeftIsField() bool {
-	if x != nil {
-		return x.LeftIsField
-	}
-	return false
-}
-
-func (x *FieldExpression) GetRightIsField() bool {
-	if x != nil {
-		return x.RightIsField
-	}
-	return false
-}
-
-func (x *FieldExpression) GetFunctionName() string {
-	if x != nil {
-		return x.FunctionName
-	}
-	return ""
-}
-
-func (x *FieldExpression) GetFunctionArgs() []string {
-	if x != nil {
-		return x.FunctionArgs
-	}
-	return nil
-}
-
-func (x *FieldExpression) GetCaseConditions() []*CaseCondition {
-	if x != nil {
-		return x.CaseConditions
-	}
-	return nil
-}
-
-func (x *FieldExpression) GetCaseElse() string {
-	if x != nil {
-		return x.CaseElse
-	}
-	return ""
-}
-
-type CaseCondition struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Condition     string                 `protobuf:"bytes,1,opt,name=condition,proto3" json:"condition,omitempty"`
-	ThenValue     string                 `protobuf:"bytes,2,opt,name=then_value,json=thenValue,proto3" json:"then_value,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CaseCondition) Reset() {
-	*x = CaseCondition{}
-	mi := &file_utilities_proto_events_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CaseCondition) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CaseCondition) ProtoMessage() {}
-
-func (x *CaseCondition) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CaseCondition.ProtoReflect.Descriptor instead.
-func (*CaseCondition) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *CaseCondition) GetCondition() string {
-	if x != nil {
-		return x.Condition
-	}
-	return ""
-}
-
-func (x *CaseCondition) GetThenValue() string {
-	if x != nil {
-		return x.ThenValue
-	}
-	return ""
-}
-
-type SelectColumn struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Expression    string                 `protobuf:"bytes,1,opt,name=expression,proto3" json:"expression,omitempty"`
-	Alias         string                 `protobuf:"bytes,2,opt,name=alias,proto3" json:"alias,omitempty"`
-	ExpressionObj *FieldExpression       `protobuf:"bytes,3,opt,name=expression_obj,json=expressionObj,proto3" json:"expression_obj,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SelectColumn) Reset() {
-	*x = SelectColumn{}
-	mi := &file_utilities_proto_events_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SelectColumn) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SelectColumn) ProtoMessage() {}
-
-func (x *SelectColumn) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SelectColumn.ProtoReflect.Descriptor instead.
-func (*SelectColumn) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *SelectColumn) GetExpression() string {
-	if x != nil {
-		return x.Expression
-	}
-	return ""
-}
-
-func (x *SelectColumn) GetAlias() string {
-	if x != nil {
-		return x.Alias
-	}
-	return ""
-}
-
-func (x *SelectColumn) GetExpressionObj() *FieldExpression {
-	if x != nil {
-		return x.ExpressionObj
-	}
-	return nil
-}
-
 type JoinClause struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	JoinType      string                 `protobuf:"bytes,1,opt,name=join_type,json=joinType,proto3" json:"join_type,omitempty"`
+	JoinType      string                 `protobuf:"bytes,1,opt,name=join_type,json=joinType,proto3" json:"join_type,omitempty"` // INNER, LEFT, RIGHT, FULL, CROSS
 	Table         string                 `protobuf:"bytes,2,opt,name=table,proto3" json:"table,omitempty"`
-	LeftField     string                 `protobuf:"bytes,3,opt,name=left_field,json=leftField,proto3" json:"left_field,omitempty"`
-	RightField    string                 `protobuf:"bytes,4,opt,name=right_field,json=rightField,proto3" json:"right_field,omitempty"`
+	LeftExpr      *Expression            `protobuf:"bytes,3,opt,name=left_expr,json=leftExpr,proto3" json:"left_expr,omitempty"`    // 100% TrueAST
+	RightExpr     *Expression            `protobuf:"bytes,4,opt,name=right_expr,json=rightExpr,proto3" json:"right_expr,omitempty"` // 100% TrueAST
+	Position      int32                  `protobuf:"varint,5,opt,name=position,proto3" json:"position,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1359,24 +1366,32 @@ func (x *JoinClause) GetTable() string {
 	return ""
 }
 
-func (x *JoinClause) GetLeftField() string {
+func (x *JoinClause) GetLeftExpr() *Expression {
 	if x != nil {
-		return x.LeftField
+		return x.LeftExpr
 	}
-	return ""
+	return nil
 }
 
-func (x *JoinClause) GetRightField() string {
+func (x *JoinClause) GetRightExpr() *Expression {
 	if x != nil {
-		return x.RightField
+		return x.RightExpr
 	}
-	return ""
+	return nil
+}
+
+func (x *JoinClause) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
 }
 
 type AggregateClause struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Function      string                 `protobuf:"bytes,1,opt,name=function,proto3" json:"function,omitempty"`
-	Field         string                 `protobuf:"bytes,2,opt,name=field,proto3" json:"field,omitempty"`
+	Function      string                 `protobuf:"bytes,1,opt,name=function,proto3" json:"function,omitempty"`                    // COUNT, SUM, AVG, MIN, MAX
+	FieldExpr     *Expression            `protobuf:"bytes,2,opt,name=field_expr,json=fieldExpr,proto3" json:"field_expr,omitempty"` // 100% TrueAST
+	Position      int32                  `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1418,17 +1433,25 @@ func (x *AggregateClause) GetFunction() string {
 	return ""
 }
 
-func (x *AggregateClause) GetField() string {
+func (x *AggregateClause) GetFieldExpr() *Expression {
 	if x != nil {
-		return x.Field
+		return x.FieldExpr
 	}
-	return ""
+	return nil
+}
+
+func (x *AggregateClause) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
 }
 
 type OrderByClause struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
-	Direction     string                 `protobuf:"bytes,2,opt,name=direction,proto3" json:"direction,omitempty"`
+	FieldExpr     *Expression            `protobuf:"bytes,1,opt,name=field_expr,json=fieldExpr,proto3" json:"field_expr,omitempty"` // 100% TrueAST
+	Direction     string                 `protobuf:"bytes,2,opt,name=direction,proto3" json:"direction,omitempty"`                  // ASC, DESC
+	Position      int32                  `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1463,11 +1486,11 @@ func (*OrderByClause) Descriptor() ([]byte, []int) {
 	return file_utilities_proto_events_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *OrderByClause) GetField() string {
+func (x *OrderByClause) GetFieldExpr() *Expression {
 	if x != nil {
-		return x.Field
+		return x.FieldExpr
 	}
-	return ""
+	return nil
 }
 
 func (x *OrderByClause) GetDirection() string {
@@ -1477,14 +1500,23 @@ func (x *OrderByClause) GetDirection() string {
 	return ""
 }
 
+func (x *OrderByClause) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
 type WindowClause struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Function      string                 `protobuf:"bytes,1,opt,name=function,proto3" json:"function,omitempty"`
-	Alias         string                 `protobuf:"bytes,2,opt,name=alias,proto3" json:"alias,omitempty"`
-	PartitionBy   []string               `protobuf:"bytes,3,rep,name=partition_by,json=partitionBy,proto3" json:"partition_by,omitempty"`
-	OrderBy       []*OrderByClause       `protobuf:"bytes,4,rep,name=order_by,json=orderBy,proto3" json:"order_by,omitempty"`
-	Offset        int32                  `protobuf:"varint,5,opt,name=offset,proto3" json:"offset,omitempty"`
-	Buckets       int32                  `protobuf:"varint,6,opt,name=buckets,proto3" json:"buckets,omitempty"`
+	Function      string                 `protobuf:"bytes,1,opt,name=function,proto3" json:"function,omitempty"`                    // ROW NUMBER, RANK, etc.
+	FieldExpr     *Expression            `protobuf:"bytes,2,opt,name=field_expr,json=fieldExpr,proto3" json:"field_expr,omitempty"` // 100% TrueAST
+	Alias         string                 `protobuf:"bytes,3,opt,name=alias,proto3" json:"alias,omitempty"`
+	PartitionBy   []*Expression          `protobuf:"bytes,4,rep,name=partition_by,json=partitionBy,proto3" json:"partition_by,omitempty"` // 100% TrueAST
+	OrderBy       []*OrderByClause       `protobuf:"bytes,5,rep,name=order_by,json=orderBy,proto3" json:"order_by,omitempty"`
+	Offset        int32                  `protobuf:"varint,6,opt,name=offset,proto3" json:"offset,omitempty"`
+	Buckets       int32                  `protobuf:"varint,7,opt,name=buckets,proto3" json:"buckets,omitempty"`
+	Position      int32                  `protobuf:"varint,8,opt,name=position,proto3" json:"position,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1526,6 +1558,13 @@ func (x *WindowClause) GetFunction() string {
 	return ""
 }
 
+func (x *WindowClause) GetFieldExpr() *Expression {
+	if x != nil {
+		return x.FieldExpr
+	}
+	return nil
+}
+
 func (x *WindowClause) GetAlias() string {
 	if x != nil {
 		return x.Alias
@@ -1533,7 +1572,7 @@ func (x *WindowClause) GetAlias() string {
 	return ""
 }
 
-func (x *WindowClause) GetPartitionBy() []string {
+func (x *WindowClause) GetPartitionBy() []*Expression {
 	if x != nil {
 		return x.PartitionBy
 	}
@@ -1561,10 +1600,17 @@ func (x *WindowClause) GetBuckets() int32 {
 	return 0
 }
 
+func (x *WindowClause) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
 type CTEClause struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	CteName        string                 `protobuf:"bytes,1,opt,name=cte_name,json=cteName,proto3" json:"cte_name,omitempty"`
-	CteQuery       string                 `protobuf:"bytes,2,opt,name=cte_query,json=cteQuery,proto3" json:"cte_query,omitempty"`
+	CteQuery       *RelationalQuery       `protobuf:"bytes,2,opt,name=cte_query,json=cteQuery,proto3" json:"cte_query,omitempty"` // 100% TrueAST
 	Recursive      bool                   `protobuf:"varint,3,opt,name=recursive,proto3" json:"recursive,omitempty"`
 	AdditionalCtes []*CTEClause           `protobuf:"bytes,4,rep,name=additional_ctes,json=additionalCtes,proto3" json:"additional_ctes,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -1608,11 +1654,11 @@ func (x *CTEClause) GetCteName() string {
 	return ""
 }
 
-func (x *CTEClause) GetCteQuery() string {
+func (x *CTEClause) GetCteQuery() *RelationalQuery {
 	if x != nil {
 		return x.CteQuery
 	}
-	return ""
+	return nil
 }
 
 func (x *CTEClause) GetRecursive() bool {
@@ -1631,9 +1677,9 @@ func (x *CTEClause) GetAdditionalCtes() []*CTEClause {
 
 type SubqueryClause struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	SubqueryType  string                 `protobuf:"bytes,1,opt,name=subquery_type,json=subqueryType,proto3" json:"subquery_type,omitempty"`
-	Field         string                 `protobuf:"bytes,2,opt,name=field,proto3" json:"field,omitempty"`
-	Subquery      string                 `protobuf:"bytes,3,opt,name=subquery,proto3" json:"subquery,omitempty"`
+	SubqueryType  string                 `protobuf:"bytes,1,opt,name=subquery_type,json=subqueryType,proto3" json:"subquery_type,omitempty"` // IN, EXISTS, NOT_IN, NOT_EXISTS, SCALAR
+	FieldExpr     *Expression            `protobuf:"bytes,2,opt,name=field_expr,json=fieldExpr,proto3" json:"field_expr,omitempty"`          // 100% TrueAST
+	Subquery      *RelationalQuery       `protobuf:"bytes,3,opt,name=subquery,proto3" json:"subquery,omitempty"`                             // 100% TrueAST
 	Alias         string                 `protobuf:"bytes,4,opt,name=alias,proto3" json:"alias,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1676,18 +1722,18 @@ func (x *SubqueryClause) GetSubqueryType() string {
 	return ""
 }
 
-func (x *SubqueryClause) GetField() string {
+func (x *SubqueryClause) GetFieldExpr() *Expression {
 	if x != nil {
-		return x.Field
+		return x.FieldExpr
 	}
-	return ""
+	return nil
 }
 
-func (x *SubqueryClause) GetSubquery() string {
+func (x *SubqueryClause) GetSubquery() *RelationalQuery {
 	if x != nil {
 		return x.Subquery
 	}
-	return ""
+	return nil
 }
 
 func (x *SubqueryClause) GetAlias() string {
@@ -1697,121 +1743,9 @@ func (x *SubqueryClause) GetAlias() string {
 	return ""
 }
 
-type CaseClause struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	WhenClauses   []*CaseWhen            `protobuf:"bytes,1,rep,name=when_clauses,json=whenClauses,proto3" json:"when_clauses,omitempty"`
-	ElseValue     string                 `protobuf:"bytes,2,opt,name=else_value,json=elseValue,proto3" json:"else_value,omitempty"`
-	Alias         string                 `protobuf:"bytes,3,opt,name=alias,proto3" json:"alias,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CaseClause) Reset() {
-	*x = CaseClause{}
-	mi := &file_utilities_proto_events_proto_msgTypes[16]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CaseClause) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CaseClause) ProtoMessage() {}
-
-func (x *CaseClause) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[16]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CaseClause.ProtoReflect.Descriptor instead.
-func (*CaseClause) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *CaseClause) GetWhenClauses() []*CaseWhen {
-	if x != nil {
-		return x.WhenClauses
-	}
-	return nil
-}
-
-func (x *CaseClause) GetElseValue() string {
-	if x != nil {
-		return x.ElseValue
-	}
-	return ""
-}
-
-func (x *CaseClause) GetAlias() string {
-	if x != nil {
-		return x.Alias
-	}
-	return ""
-}
-
-type CaseWhen struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Condition     string                 `protobuf:"bytes,1,opt,name=condition,proto3" json:"condition,omitempty"`
-	ThenValue     string                 `protobuf:"bytes,2,opt,name=then_value,json=thenValue,proto3" json:"then_value,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CaseWhen) Reset() {
-	*x = CaseWhen{}
-	mi := &file_utilities_proto_events_proto_msgTypes[17]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CaseWhen) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CaseWhen) ProtoMessage() {}
-
-func (x *CaseWhen) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[17]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CaseWhen.ProtoReflect.Descriptor instead.
-func (*CaseWhen) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *CaseWhen) GetCondition() string {
-	if x != nil {
-		return x.Condition
-	}
-	return ""
-}
-
-func (x *CaseWhen) GetThenValue() string {
-	if x != nil {
-		return x.ThenValue
-	}
-	return ""
-}
-
 type UpsertClause struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	ConflictFields []string               `protobuf:"bytes,1,rep,name=conflict_fields,json=conflictFields,proto3" json:"conflict_fields,omitempty"`
+	ConflictFields []*Expression          `protobuf:"bytes,1,rep,name=conflict_fields,json=conflictFields,proto3" json:"conflict_fields,omitempty"` // 100% TrueAST
 	UpdateFields   []*QueryField          `protobuf:"bytes,2,rep,name=update_fields,json=updateFields,proto3" json:"update_fields,omitempty"`
 	ConflictAction string                 `protobuf:"bytes,3,opt,name=conflict_action,json=conflictAction,proto3" json:"conflict_action,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -1820,7 +1754,7 @@ type UpsertClause struct {
 
 func (x *UpsertClause) Reset() {
 	*x = UpsertClause{}
-	mi := &file_utilities_proto_events_proto_msgTypes[18]
+	mi := &file_utilities_proto_events_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1832,7 +1766,7 @@ func (x *UpsertClause) String() string {
 func (*UpsertClause) ProtoMessage() {}
 
 func (x *UpsertClause) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[18]
+	mi := &file_utilities_proto_events_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1845,10 +1779,10 @@ func (x *UpsertClause) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertClause.ProtoReflect.Descriptor instead.
 func (*UpsertClause) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{18}
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *UpsertClause) GetConflictFields() []string {
+func (x *UpsertClause) GetConflictFields() []*Expression {
 	if x != nil {
 		return x.ConflictFields
 	}
@@ -1878,7 +1812,7 @@ type BulkInsertRow struct {
 
 func (x *BulkInsertRow) Reset() {
 	*x = BulkInsertRow{}
-	mi := &file_utilities_proto_events_proto_msgTypes[19]
+	mi := &file_utilities_proto_events_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1890,7 +1824,7 @@ func (x *BulkInsertRow) String() string {
 func (*BulkInsertRow) ProtoMessage() {}
 
 func (x *BulkInsertRow) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[19]
+	mi := &file_utilities_proto_events_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1903,7 +1837,7 @@ func (x *BulkInsertRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BulkInsertRow.ProtoReflect.Descriptor instead.
 func (*BulkInsertRow) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{19}
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *BulkInsertRow) GetFields() []*QueryField {
@@ -1915,7 +1849,7 @@ func (x *BulkInsertRow) GetFields() []*QueryField {
 
 type SetOperationClause struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	OperationType string                 `protobuf:"bytes,1,opt,name=operation_type,json=operationType,proto3" json:"operation_type,omitempty"`
+	OperationType string                 `protobuf:"bytes,1,opt,name=operation_type,json=operationType,proto3" json:"operation_type,omitempty"` // UNION, UNION ALL, INTERSECT, EXCEPT
 	LeftQuery     *RelationalQuery       `protobuf:"bytes,2,opt,name=left_query,json=leftQuery,proto3" json:"left_query,omitempty"`
 	RightQuery    *RelationalQuery       `protobuf:"bytes,3,opt,name=right_query,json=rightQuery,proto3" json:"right_query,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1924,7 +1858,7 @@ type SetOperationClause struct {
 
 func (x *SetOperationClause) Reset() {
 	*x = SetOperationClause{}
-	mi := &file_utilities_proto_events_proto_msgTypes[20]
+	mi := &file_utilities_proto_events_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1936,7 +1870,7 @@ func (x *SetOperationClause) String() string {
 func (*SetOperationClause) ProtoMessage() {}
 
 func (x *SetOperationClause) ProtoReflect() protoreflect.Message {
-	mi := &file_utilities_proto_events_proto_msgTypes[20]
+	mi := &file_utilities_proto_events_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1949,7 +1883,7 @@ func (x *SetOperationClause) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetOperationClause.ProtoReflect.Descriptor instead.
 func (*SetOperationClause) Descriptor() ([]byte, []int) {
-	return file_utilities_proto_events_proto_rawDescGZIP(), []int{20}
+	return file_utilities_proto_events_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SetOperationClause) GetOperationType() string {
@@ -1985,7 +1919,48 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\bdocument\x18\x02 \x01(\v2\x15.omniql.DocumentQueryH\x00R\bdocument\x124\n" +
 	"\tkey_value\x18\x03 \x01(\v2\x15.omniql.KeyValueQueryH\x00R\bkeyValueB\f\n" +
 	"\n" +
-	"query_type\"\xb5\v\n" +
+	"query_type\"\x8f\x03\n" +
+	"\n" +
+	"Expression\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1a\n" +
+	"\bposition\x18\x02 \x01(\x05R\bposition\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\x12&\n" +
+	"\x04left\x18\x04 \x01(\v2\x12.omniql.ExpressionR\x04left\x12\x1a\n" +
+	"\boperator\x18\x05 \x01(\tR\boperator\x12(\n" +
+	"\x05right\x18\x06 \x01(\v2\x12.omniql.ExpressionR\x05right\x12#\n" +
+	"\rfunction_name\x18\a \x01(\tR\ffunctionName\x127\n" +
+	"\rfunction_args\x18\b \x03(\v2\x12.omniql.ExpressionR\ffunctionArgs\x12>\n" +
+	"\x0fcase_conditions\x18\t \x03(\v2\x15.omniql.CaseConditionR\x0ecaseConditions\x12/\n" +
+	"\tcase_else\x18\n" +
+	" \x01(\v2\x12.omniql.ExpressionR\bcaseElse\"\xde\x02\n" +
+	"\x0eQueryCondition\x121\n" +
+	"\n" +
+	"field_expr\x18\x01 \x01(\v2\x12.omniql.ExpressionR\tfieldExpr\x12\x1a\n" +
+	"\boperator\x18\x02 \x01(\tR\boperator\x121\n" +
+	"\n" +
+	"value_expr\x18\x03 \x01(\v2\x12.omniql.ExpressionR\tvalueExpr\x123\n" +
+	"\vvalue2_expr\x18\x04 \x01(\v2\x12.omniql.ExpressionR\n" +
+	"value2Expr\x123\n" +
+	"\vvalues_expr\x18\x05 \x03(\v2\x12.omniql.ExpressionR\n" +
+	"valuesExpr\x12\x14\n" +
+	"\x05logic\x18\x06 \x01(\tR\x05logic\x12.\n" +
+	"\x06nested\x18\a \x03(\v2\x16.omniql.QueryConditionR\x06nested\x12\x1a\n" +
+	"\bposition\x18\b \x01(\x05R\bposition\"\x92\x01\n" +
+	"\rCaseCondition\x124\n" +
+	"\tcondition\x18\x01 \x01(\v2\x16.omniql.QueryConditionR\tcondition\x12/\n" +
+	"\tthen_expr\x18\x02 \x01(\v2\x12.omniql.ExpressionR\bthenExpr\x12\x1a\n" +
+	"\bposition\x18\x03 \x01(\x05R\bposition\"\xae\x01\n" +
+	"\n" +
+	"QueryField\x12/\n" +
+	"\tname_expr\x18\x01 \x01(\v2\x12.omniql.ExpressionR\bnameExpr\x121\n" +
+	"\n" +
+	"value_expr\x18\x02 \x01(\v2\x12.omniql.ExpressionR\tvalueExpr\x12 \n" +
+	"\vconstraints\x18\x03 \x03(\tR\vconstraints\x12\x1a\n" +
+	"\bposition\x18\x04 \x01(\x05R\bposition\"{\n" +
+	"\fSelectColumn\x129\n" +
+	"\x0eexpression_obj\x18\x01 \x01(\v2\x12.omniql.ExpressionR\rexpressionObj\x12\x14\n" +
+	"\x05alias\x18\x02 \x01(\tR\x05alias\x12\x1a\n" +
+	"\bposition\x18\x03 \x01(\x05R\bposition\"\xe8\v\n" +
 	"\x0fRelationalQuery\x12\x1c\n" +
 	"\toperation\x18\x01 \x01(\tR\toperation\x12\x14\n" +
 	"\x05table\x18\x02 \x01(\tR\x05table\x126\n" +
@@ -1995,42 +1970,42 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\x06fields\x18\x04 \x03(\v2\x12.omniql.QueryFieldR\x06fields\x12\x14\n" +
 	"\x05limit\x18\x05 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x06 \x01(\x05R\x06offset\x12\x1a\n" +
-	"\bdistinct\x18\" \x01(\bR\bdistinct\x12%\n" +
-	"\x0etransaction_id\x18# \x01(\tR\rtransactionId\x12(\n" +
-	"\x05joins\x18\a \x03(\v2\x12.omniql.JoinClauseR\x05joins\x125\n" +
-	"\taggregate\x18\b \x01(\v2\x17.omniql.AggregateClauseR\taggregate\x12\x19\n" +
-	"\bgroup_by\x18\t \x03(\tR\agroupBy\x12.\n" +
-	"\x06having\x18\n" +
-	" \x03(\v2\x16.omniql.QueryConditionR\x06having\x120\n" +
-	"\border_by\x18\v \x03(\v2\x15.omniql.OrderByClauseR\aorderBy\x12%\n" +
-	"\x0esavepoint_name\x18\f \x01(\tR\rsavepointName\x12 \n" +
-	"\vpermissions\x18\r \x03(\tR\vpermissions\x12+\n" +
-	"\x11permission_target\x18\x0e \x01(\tR\x10permissionTarget\x12\x1b\n" +
-	"\trole_name\x18\x0f \x01(\tR\broleName\x12?\n" +
-	"\x10window_functions\x18\x10 \x03(\v2\x14.omniql.WindowClauseR\x0fwindowFunctions\x12#\n" +
-	"\x03cte\x18\x11 \x01(\v2\x11.omniql.CTEClauseR\x03cte\x122\n" +
-	"\bsubquery\x18\x12 \x01(\v2\x16.omniql.SubqueryClauseR\bsubquery\x12\x18\n" +
-	"\apattern\x18\x13 \x01(\tR\apattern\x12/\n" +
-	"\tcase_when\x18\x14 \x01(\v2\x12.omniql.CaseClauseR\bcaseWhen\x12'\n" +
-	"\x0fisolation_level\x18\x15 \x01(\tR\x0eisolationLevel\x12\x1b\n" +
-	"\tread_only\x18\x16 \x01(\bR\breadOnly\x12,\n" +
-	"\x06upsert\x18\x17 \x01(\v2\x14.omniql.UpsertClauseR\x06upsert\x122\n" +
-	"\tbulk_data\x18\x18 \x03(\v2\x15.omniql.BulkInsertRowR\bbulkData\x12\x1b\n" +
-	"\tview_name\x18\x19 \x01(\tR\bviewName\x12\x1d\n" +
+	"\bdistinct\x18\a \x01(\bR\bdistinct\x12%\n" +
+	"\x0etransaction_id\x18\b \x01(\tR\rtransactionId\x12(\n" +
+	"\x05joins\x18\t \x03(\v2\x12.omniql.JoinClauseR\x05joins\x125\n" +
+	"\taggregate\x18\n" +
+	" \x01(\v2\x17.omniql.AggregateClauseR\taggregate\x12-\n" +
+	"\bgroup_by\x18\v \x03(\v2\x12.omniql.ExpressionR\agroupBy\x12.\n" +
+	"\x06having\x18\f \x03(\v2\x16.omniql.QueryConditionR\x06having\x120\n" +
+	"\border_by\x18\r \x03(\v2\x15.omniql.OrderByClauseR\aorderBy\x12%\n" +
+	"\x0esavepoint_name\x18\x0e \x01(\tR\rsavepointName\x12 \n" +
+	"\vpermissions\x18\x0f \x03(\tR\vpermissions\x12+\n" +
+	"\x11permission_target\x18\x10 \x01(\tR\x10permissionTarget\x12\x1b\n" +
+	"\trole_name\x18\x11 \x01(\tR\broleName\x12?\n" +
+	"\x10window_functions\x18\x12 \x03(\v2\x14.omniql.WindowClauseR\x0fwindowFunctions\x12#\n" +
+	"\x03cte\x18\x13 \x01(\v2\x11.omniql.CTEClauseR\x03cte\x122\n" +
+	"\bsubquery\x18\x14 \x01(\v2\x16.omniql.SubqueryClauseR\bsubquery\x12\x18\n" +
+	"\apattern\x18\x15 \x01(\tR\apattern\x12'\n" +
+	"\x0fisolation_level\x18\x16 \x01(\tR\x0eisolationLevel\x12\x1b\n" +
+	"\tread_only\x18\x17 \x01(\bR\breadOnly\x12,\n" +
+	"\x06upsert\x18\x18 \x01(\v2\x14.omniql.UpsertClauseR\x06upsert\x122\n" +
+	"\tbulk_data\x18\x19 \x03(\v2\x15.omniql.BulkInsertRowR\bbulkData\x12\x1b\n" +
+	"\tview_name\x18\x1a \x01(\tR\bviewName\x126\n" +
 	"\n" +
-	"view_query\x18\x1a \x01(\tR\tviewQuery\x12#\n" +
-	"\rdatabase_name\x18\x1b \x01(\tR\fdatabaseName\x12\x19\n" +
-	"\bnew_name\x18\x1c \x01(\tR\anewName\x12\x1b\n" +
-	"\tuser_name\x18\x1d \x01(\tR\buserName\x12\x1a\n" +
-	"\bpassword\x18\x1e \x01(\tR\bpassword\x12\x1d\n" +
+	"view_query\x18\x1b \x01(\v2\x17.omniql.RelationalQueryR\tviewQuery\x12#\n" +
+	"\rdatabase_name\x18\x1c \x01(\tR\fdatabaseName\x12\x19\n" +
+	"\bnew_name\x18\x1d \x01(\tR\anewName\x12\x1b\n" +
+	"\tuser_name\x18\x1e \x01(\tR\buserName\x12\x1a\n" +
+	"\bpassword\x18\x1f \x01(\tR\bpassword\x12\x1d\n" +
 	"\n" +
-	"user_roles\x18\x1f \x03(\tR\tuserRoles\x12?\n" +
-	"\rset_operation\x18  \x01(\v2\x1a.omniql.SetOperationClauseR\fsetOperation\x12\x18\n" +
-	"\acolumns\x18! \x03(\tR\acolumns\x12;\n" +
-	"\x0eselect_columns\x18$ \x03(\v2\x14.omniql.SelectColumnR\rselectColumns\x12\x1d\n" +
+	"user_roles\x18  \x03(\tR\tuserRoles\x12?\n" +
+	"\rset_operation\x18! \x01(\v2\x1a.omniql.SetOperationClauseR\fsetOperation\x12,\n" +
+	"\acolumns\x18\" \x03(\v2\x12.omniql.ExpressionR\acolumns\x12;\n" +
+	"\x0eselect_columns\x18# \x03(\v2\x14.omniql.SelectColumnR\rselectColumns\x12\x1d\n" +
 	"\n" +
-	"session_id\x18% \x01(\tR\tsessionId\x12\x10\n" +
-	"\x03sql\x18& \x01(\tR\x03sql\"\xbd\n" +
+	"session_id\x18$ \x01(\tR\tsessionId\x12\x10\n" +
+	"\x03sql\x18% \x01(\tR\x03sql\x12!\n" +
+	"\falter_action\x18& \x01(\tR\valterAction\"\xcb\n" +
 	"\n" +
 	"\rDocumentQuery\x12\x1c\n" +
 	"\toperation\x18\x01 \x01(\tR\toperation\x12\x1e\n" +
@@ -2044,8 +2019,8 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\x05limit\x18\x05 \x01(\x05R\x05limit\x12\x12\n" +
 	"\x04skip\x18\x06 \x01(\x05R\x04skip\x12(\n" +
 	"\x05joins\x18\a \x03(\v2\x12.omniql.JoinClauseR\x05joins\x125\n" +
-	"\taggregate\x18\b \x01(\v2\x17.omniql.AggregateClauseR\taggregate\x12\x19\n" +
-	"\bgroup_by\x18\t \x03(\tR\agroupBy\x120\n" +
+	"\taggregate\x18\b \x01(\v2\x17.omniql.AggregateClauseR\taggregate\x12-\n" +
+	"\bgroup_by\x18\t \x03(\v2\x12.omniql.ExpressionR\agroupBy\x120\n" +
 	"\border_by\x18\n" +
 	" \x03(\v2\x15.omniql.OrderByClauseR\aorderBy\x12%\n" +
 	"\x0esavepoint_name\x18\v \x01(\tR\rsavepointName\x12 \n" +
@@ -2053,29 +2028,28 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\x11permission_target\x18\r \x01(\tR\x10permissionTarget\x12\x1b\n" +
 	"\trole_name\x18\x0e \x01(\tR\broleName\x12?\n" +
 	"\x10window_functions\x18\x0f \x03(\v2\x14.omniql.WindowClauseR\x0fwindowFunctions\x12\x18\n" +
-	"\apattern\x18\x10 \x01(\tR\apattern\x12/\n" +
-	"\tcase_when\x18\x11 \x01(\v2\x12.omniql.CaseClauseR\bcaseWhen\x12'\n" +
-	"\x0fisolation_level\x18\x12 \x01(\tR\x0eisolationLevel\x12\x1b\n" +
-	"\tread_only\x18\x13 \x01(\bR\breadOnly\x12,\n" +
-	"\x06upsert\x18\x14 \x01(\v2\x14.omniql.UpsertClauseR\x06upsert\x122\n" +
-	"\tbulk_data\x18\x15 \x03(\v2\x15.omniql.BulkInsertRowR\bbulkData\x12\x1b\n" +
-	"\tview_name\x18\x16 \x01(\tR\bviewName\x12\x1d\n" +
+	"\apattern\x18\x10 \x01(\tR\apattern\x12'\n" +
+	"\x0fisolation_level\x18\x11 \x01(\tR\x0eisolationLevel\x12\x1b\n" +
+	"\tread_only\x18\x12 \x01(\bR\breadOnly\x12,\n" +
+	"\x06upsert\x18\x13 \x01(\v2\x14.omniql.UpsertClauseR\x06upsert\x122\n" +
+	"\tbulk_data\x18\x14 \x03(\v2\x15.omniql.BulkInsertRowR\bbulkData\x12\x1b\n" +
+	"\tview_name\x18\x15 \x01(\tR\bviewName\x124\n" +
 	"\n" +
-	"view_query\x18\x17 \x01(\tR\tviewQuery\x12#\n" +
-	"\rdatabase_name\x18\x18 \x01(\tR\fdatabaseName\x12\x1b\n" +
-	"\tuser_name\x18\x19 \x01(\tR\buserName\x12\x1a\n" +
-	"\bpassword\x18\x1a \x01(\tR\bpassword\x12\x1d\n" +
+	"view_query\x18\x16 \x01(\v2\x15.omniql.DocumentQueryR\tviewQuery\x12#\n" +
+	"\rdatabase_name\x18\x17 \x01(\tR\fdatabaseName\x12\x1b\n" +
+	"\tuser_name\x18\x18 \x01(\tR\buserName\x12\x1a\n" +
+	"\bpassword\x18\x19 \x01(\tR\bpassword\x12\x1d\n" +
 	"\n" +
-	"user_roles\x18\x1b \x03(\tR\tuserRoles\x12\x19\n" +
-	"\bnew_name\x18\x1c \x01(\tR\anewName\x12?\n" +
-	"\rset_operation\x18\x1d \x01(\v2\x1a.omniql.SetOperationClauseR\fsetOperation\x12\x18\n" +
-	"\acolumns\x18\x1e \x03(\tR\acolumns\x12;\n" +
-	"\x0eselect_columns\x18\x1f \x03(\v2\x14.omniql.SelectColumnR\rselectColumns\x12\x1d\n" +
+	"user_roles\x18\x1a \x03(\tR\tuserRoles\x12\x19\n" +
+	"\bnew_name\x18\x1b \x01(\tR\anewName\x12?\n" +
+	"\rset_operation\x18\x1c \x01(\v2\x1a.omniql.SetOperationClauseR\fsetOperation\x12,\n" +
+	"\acolumns\x18\x1d \x03(\v2\x12.omniql.ExpressionR\acolumns\x12;\n" +
+	"\x0eselect_columns\x18\x1e \x03(\v2\x14.omniql.SelectColumnR\rselectColumns\x12\x1d\n" +
 	"\n" +
-	"session_id\x18  \x01(\tR\tsessionId\x12.\n" +
-	"\x06having\x18! \x03(\v2\x16.omniql.QueryConditionR\x06having\x12\x1a\n" +
-	"\bdistinct\x18\" \x01(\bR\bdistinct\x12\x14\n" +
-	"\x05query\x18# \x01(\tR\x05query\"\xca\x01\n" +
+	"session_id\x18\x1f \x01(\tR\tsessionId\x12.\n" +
+	"\x06having\x18  \x03(\v2\x16.omniql.QueryConditionR\x06having\x12\x1a\n" +
+	"\bdistinct\x18! \x01(\bR\bdistinct\x12\x14\n" +
+	"\x05query\x18\" \x01(\tR\x05query\"\xca\x01\n" +
 	"\rKeyValueQuery\x12\x18\n" +
 	"\acommand\x18\x01 \x01(\tR\acommand\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x12\n" +
@@ -2087,87 +2061,48 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\x0ecommand_string\x18\x06 \x01(\tR\rcommandString\"6\n" +
 	"\fKeyValuePair\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\"X\n" +
-	"\x0eQueryCondition\x12\x14\n" +
-	"\x05field\x18\x01 \x01(\tR\x05field\x12\x1a\n" +
-	"\boperator\x18\x02 \x01(\tR\boperator\x12\x14\n" +
-	"\x05value\x18\x03 \x01(\tR\x05value\"\xc8\x01\n" +
-	"\n" +
-	"QueryField\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\x12 \n" +
-	"\vconstraints\x18\x03 \x03(\tR\vconstraints\x12%\n" +
-	"\rliteral_value\x18\x04 \x01(\tH\x00R\fliteralValue\x129\n" +
-	"\n" +
-	"expression\x18\x05 \x01(\v2\x17.omniql.FieldExpressionH\x00R\n" +
-	"expressionB\f\n" +
-	"\n" +
-	"field_type\"\x8f\x03\n" +
-	"\x0fFieldExpression\x12'\n" +
-	"\x0fexpression_type\x18\x01 \x01(\tR\x0eexpressionType\x12!\n" +
-	"\fleft_operand\x18\x02 \x01(\tR\vleftOperand\x12\x1a\n" +
-	"\boperator\x18\x03 \x01(\tR\boperator\x12#\n" +
-	"\rright_operand\x18\x04 \x01(\tR\frightOperand\x12\"\n" +
-	"\rleft_is_field\x18\x05 \x01(\bR\vleftIsField\x12$\n" +
-	"\x0eright_is_field\x18\x06 \x01(\bR\frightIsField\x12#\n" +
-	"\rfunction_name\x18\a \x01(\tR\ffunctionName\x12#\n" +
-	"\rfunction_args\x18\b \x03(\tR\ffunctionArgs\x12>\n" +
-	"\x0fcase_conditions\x18\t \x03(\v2\x15.omniql.CaseConditionR\x0ecaseConditions\x12\x1b\n" +
-	"\tcase_else\x18\n" +
-	" \x01(\tR\bcaseElse\"L\n" +
-	"\rCaseCondition\x12\x1c\n" +
-	"\tcondition\x18\x01 \x01(\tR\tcondition\x12\x1d\n" +
-	"\n" +
-	"then_value\x18\x02 \x01(\tR\tthenValue\"\x84\x01\n" +
-	"\fSelectColumn\x12\x1e\n" +
-	"\n" +
-	"expression\x18\x01 \x01(\tR\n" +
-	"expression\x12\x14\n" +
-	"\x05alias\x18\x02 \x01(\tR\x05alias\x12>\n" +
-	"\x0eexpression_obj\x18\x03 \x01(\v2\x17.omniql.FieldExpressionR\rexpressionObj\"\x7f\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"\xbf\x01\n" +
 	"\n" +
 	"JoinClause\x12\x1b\n" +
 	"\tjoin_type\x18\x01 \x01(\tR\bjoinType\x12\x14\n" +
-	"\x05table\x18\x02 \x01(\tR\x05table\x12\x1d\n" +
+	"\x05table\x18\x02 \x01(\tR\x05table\x12/\n" +
+	"\tleft_expr\x18\x03 \x01(\v2\x12.omniql.ExpressionR\bleftExpr\x121\n" +
 	"\n" +
-	"left_field\x18\x03 \x01(\tR\tleftField\x12\x1f\n" +
-	"\vright_field\x18\x04 \x01(\tR\n" +
-	"rightField\"C\n" +
+	"right_expr\x18\x04 \x01(\v2\x12.omniql.ExpressionR\trightExpr\x12\x1a\n" +
+	"\bposition\x18\x05 \x01(\x05R\bposition\"|\n" +
 	"\x0fAggregateClause\x12\x1a\n" +
-	"\bfunction\x18\x01 \x01(\tR\bfunction\x12\x14\n" +
-	"\x05field\x18\x02 \x01(\tR\x05field\"C\n" +
-	"\rOrderByClause\x12\x14\n" +
-	"\x05field\x18\x01 \x01(\tR\x05field\x12\x1c\n" +
-	"\tdirection\x18\x02 \x01(\tR\tdirection\"\xc7\x01\n" +
+	"\bfunction\x18\x01 \x01(\tR\bfunction\x121\n" +
+	"\n" +
+	"field_expr\x18\x02 \x01(\v2\x12.omniql.ExpressionR\tfieldExpr\x12\x1a\n" +
+	"\bposition\x18\x03 \x01(\x05R\bposition\"|\n" +
+	"\rOrderByClause\x121\n" +
+	"\n" +
+	"field_expr\x18\x01 \x01(\v2\x12.omniql.ExpressionR\tfieldExpr\x12\x1c\n" +
+	"\tdirection\x18\x02 \x01(\tR\tdirection\x12\x1a\n" +
+	"\bposition\x18\x03 \x01(\x05R\bposition\"\xaa\x02\n" +
 	"\fWindowClause\x12\x1a\n" +
-	"\bfunction\x18\x01 \x01(\tR\bfunction\x12\x14\n" +
-	"\x05alias\x18\x02 \x01(\tR\x05alias\x12!\n" +
-	"\fpartition_by\x18\x03 \x03(\tR\vpartitionBy\x120\n" +
-	"\border_by\x18\x04 \x03(\v2\x15.omniql.OrderByClauseR\aorderBy\x12\x16\n" +
-	"\x06offset\x18\x05 \x01(\x05R\x06offset\x12\x18\n" +
-	"\abuckets\x18\x06 \x01(\x05R\abuckets\"\x9d\x01\n" +
+	"\bfunction\x18\x01 \x01(\tR\bfunction\x121\n" +
+	"\n" +
+	"field_expr\x18\x02 \x01(\v2\x12.omniql.ExpressionR\tfieldExpr\x12\x14\n" +
+	"\x05alias\x18\x03 \x01(\tR\x05alias\x125\n" +
+	"\fpartition_by\x18\x04 \x03(\v2\x12.omniql.ExpressionR\vpartitionBy\x120\n" +
+	"\border_by\x18\x05 \x03(\v2\x15.omniql.OrderByClauseR\aorderBy\x12\x16\n" +
+	"\x06offset\x18\x06 \x01(\x05R\x06offset\x12\x18\n" +
+	"\abuckets\x18\a \x01(\x05R\abuckets\x12\x1a\n" +
+	"\bposition\x18\b \x01(\x05R\bposition\"\xb6\x01\n" +
 	"\tCTEClause\x12\x19\n" +
-	"\bcte_name\x18\x01 \x01(\tR\acteName\x12\x1b\n" +
-	"\tcte_query\x18\x02 \x01(\tR\bcteQuery\x12\x1c\n" +
+	"\bcte_name\x18\x01 \x01(\tR\acteName\x124\n" +
+	"\tcte_query\x18\x02 \x01(\v2\x17.omniql.RelationalQueryR\bcteQuery\x12\x1c\n" +
 	"\trecursive\x18\x03 \x01(\bR\trecursive\x12:\n" +
-	"\x0fadditional_ctes\x18\x04 \x03(\v2\x11.omniql.CTEClauseR\x0eadditionalCtes\"}\n" +
+	"\x0fadditional_ctes\x18\x04 \x03(\v2\x11.omniql.CTEClauseR\x0eadditionalCtes\"\xb3\x01\n" +
 	"\x0eSubqueryClause\x12#\n" +
-	"\rsubquery_type\x18\x01 \x01(\tR\fsubqueryType\x12\x14\n" +
-	"\x05field\x18\x02 \x01(\tR\x05field\x12\x1a\n" +
-	"\bsubquery\x18\x03 \x01(\tR\bsubquery\x12\x14\n" +
-	"\x05alias\x18\x04 \x01(\tR\x05alias\"v\n" +
+	"\rsubquery_type\x18\x01 \x01(\tR\fsubqueryType\x121\n" +
 	"\n" +
-	"CaseClause\x123\n" +
-	"\fwhen_clauses\x18\x01 \x03(\v2\x10.omniql.CaseWhenR\vwhenClauses\x12\x1d\n" +
-	"\n" +
-	"else_value\x18\x02 \x01(\tR\telseValue\x12\x14\n" +
-	"\x05alias\x18\x03 \x01(\tR\x05alias\"G\n" +
-	"\bCaseWhen\x12\x1c\n" +
-	"\tcondition\x18\x01 \x01(\tR\tcondition\x12\x1d\n" +
-	"\n" +
-	"then_value\x18\x02 \x01(\tR\tthenValue\"\x99\x01\n" +
-	"\fUpsertClause\x12'\n" +
-	"\x0fconflict_fields\x18\x01 \x03(\tR\x0econflictFields\x127\n" +
+	"field_expr\x18\x02 \x01(\v2\x12.omniql.ExpressionR\tfieldExpr\x123\n" +
+	"\bsubquery\x18\x03 \x01(\v2\x17.omniql.RelationalQueryR\bsubquery\x12\x14\n" +
+	"\x05alias\x18\x04 \x01(\tR\x05alias\"\xad\x01\n" +
+	"\fUpsertClause\x12;\n" +
+	"\x0fconflict_fields\x18\x01 \x03(\v2\x12.omniql.ExpressionR\x0econflictFields\x127\n" +
 	"\rupdate_fields\x18\x02 \x03(\v2\x12.omniql.QueryFieldR\fupdateFields\x12'\n" +
 	"\x0fconflict_action\x18\x03 \x01(\tR\x0econflictAction\";\n" +
 	"\rBulkInsertRow\x12*\n" +
@@ -2191,76 +2126,99 @@ func file_utilities_proto_events_proto_rawDescGZIP() []byte {
 	return file_utilities_proto_events_proto_rawDescData
 }
 
-var file_utilities_proto_events_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_utilities_proto_events_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_utilities_proto_events_proto_goTypes = []any{
 	(*UniversalQuery)(nil),     // 0: omniql.UniversalQuery
-	(*RelationalQuery)(nil),    // 1: omniql.RelationalQuery
-	(*DocumentQuery)(nil),      // 2: omniql.DocumentQuery
-	(*KeyValueQuery)(nil),      // 3: omniql.KeyValueQuery
-	(*KeyValuePair)(nil),       // 4: omniql.KeyValuePair
-	(*QueryCondition)(nil),     // 5: omniql.QueryCondition
-	(*QueryField)(nil),         // 6: omniql.QueryField
-	(*FieldExpression)(nil),    // 7: omniql.FieldExpression
-	(*CaseCondition)(nil),      // 8: omniql.CaseCondition
-	(*SelectColumn)(nil),       // 9: omniql.SelectColumn
+	(*Expression)(nil),         // 1: omniql.Expression
+	(*QueryCondition)(nil),     // 2: omniql.QueryCondition
+	(*CaseCondition)(nil),      // 3: omniql.CaseCondition
+	(*QueryField)(nil),         // 4: omniql.QueryField
+	(*SelectColumn)(nil),       // 5: omniql.SelectColumn
+	(*RelationalQuery)(nil),    // 6: omniql.RelationalQuery
+	(*DocumentQuery)(nil),      // 7: omniql.DocumentQuery
+	(*KeyValueQuery)(nil),      // 8: omniql.KeyValueQuery
+	(*KeyValuePair)(nil),       // 9: omniql.KeyValuePair
 	(*JoinClause)(nil),         // 10: omniql.JoinClause
 	(*AggregateClause)(nil),    // 11: omniql.AggregateClause
 	(*OrderByClause)(nil),      // 12: omniql.OrderByClause
 	(*WindowClause)(nil),       // 13: omniql.WindowClause
 	(*CTEClause)(nil),          // 14: omniql.CTEClause
 	(*SubqueryClause)(nil),     // 15: omniql.SubqueryClause
-	(*CaseClause)(nil),         // 16: omniql.CaseClause
-	(*CaseWhen)(nil),           // 17: omniql.CaseWhen
-	(*UpsertClause)(nil),       // 18: omniql.UpsertClause
-	(*BulkInsertRow)(nil),      // 19: omniql.BulkInsertRow
-	(*SetOperationClause)(nil), // 20: omniql.SetOperationClause
+	(*UpsertClause)(nil),       // 16: omniql.UpsertClause
+	(*BulkInsertRow)(nil),      // 17: omniql.BulkInsertRow
+	(*SetOperationClause)(nil), // 18: omniql.SetOperationClause
 }
 var file_utilities_proto_events_proto_depIdxs = []int32{
-	1,  // 0: omniql.UniversalQuery.relational:type_name -> omniql.RelationalQuery
-	2,  // 1: omniql.UniversalQuery.document:type_name -> omniql.DocumentQuery
-	3,  // 2: omniql.UniversalQuery.key_value:type_name -> omniql.KeyValueQuery
-	5,  // 3: omniql.RelationalQuery.conditions:type_name -> omniql.QueryCondition
-	6,  // 4: omniql.RelationalQuery.fields:type_name -> omniql.QueryField
-	10, // 5: omniql.RelationalQuery.joins:type_name -> omniql.JoinClause
-	11, // 6: omniql.RelationalQuery.aggregate:type_name -> omniql.AggregateClause
-	5,  // 7: omniql.RelationalQuery.having:type_name -> omniql.QueryCondition
-	12, // 8: omniql.RelationalQuery.order_by:type_name -> omniql.OrderByClause
-	13, // 9: omniql.RelationalQuery.window_functions:type_name -> omniql.WindowClause
-	14, // 10: omniql.RelationalQuery.cte:type_name -> omniql.CTEClause
-	15, // 11: omniql.RelationalQuery.subquery:type_name -> omniql.SubqueryClause
-	16, // 12: omniql.RelationalQuery.case_when:type_name -> omniql.CaseClause
-	18, // 13: omniql.RelationalQuery.upsert:type_name -> omniql.UpsertClause
-	19, // 14: omniql.RelationalQuery.bulk_data:type_name -> omniql.BulkInsertRow
-	20, // 15: omniql.RelationalQuery.set_operation:type_name -> omniql.SetOperationClause
-	9,  // 16: omniql.RelationalQuery.select_columns:type_name -> omniql.SelectColumn
-	5,  // 17: omniql.DocumentQuery.conditions:type_name -> omniql.QueryCondition
-	6,  // 18: omniql.DocumentQuery.fields:type_name -> omniql.QueryField
-	10, // 19: omniql.DocumentQuery.joins:type_name -> omniql.JoinClause
-	11, // 20: omniql.DocumentQuery.aggregate:type_name -> omniql.AggregateClause
-	12, // 21: omniql.DocumentQuery.order_by:type_name -> omniql.OrderByClause
-	13, // 22: omniql.DocumentQuery.window_functions:type_name -> omniql.WindowClause
-	16, // 23: omniql.DocumentQuery.case_when:type_name -> omniql.CaseClause
-	18, // 24: omniql.DocumentQuery.upsert:type_name -> omniql.UpsertClause
-	19, // 25: omniql.DocumentQuery.bulk_data:type_name -> omniql.BulkInsertRow
-	20, // 26: omniql.DocumentQuery.set_operation:type_name -> omniql.SetOperationClause
-	9,  // 27: omniql.DocumentQuery.select_columns:type_name -> omniql.SelectColumn
-	5,  // 28: omniql.DocumentQuery.having:type_name -> omniql.QueryCondition
-	4,  // 29: omniql.KeyValueQuery.bulk_pairs:type_name -> omniql.KeyValuePair
-	7,  // 30: omniql.QueryField.expression:type_name -> omniql.FieldExpression
-	8,  // 31: omniql.FieldExpression.case_conditions:type_name -> omniql.CaseCondition
-	7,  // 32: omniql.SelectColumn.expression_obj:type_name -> omniql.FieldExpression
-	12, // 33: omniql.WindowClause.order_by:type_name -> omniql.OrderByClause
-	14, // 34: omniql.CTEClause.additional_ctes:type_name -> omniql.CTEClause
-	17, // 35: omniql.CaseClause.when_clauses:type_name -> omniql.CaseWhen
-	6,  // 36: omniql.UpsertClause.update_fields:type_name -> omniql.QueryField
-	6,  // 37: omniql.BulkInsertRow.fields:type_name -> omniql.QueryField
-	1,  // 38: omniql.SetOperationClause.left_query:type_name -> omniql.RelationalQuery
-	1,  // 39: omniql.SetOperationClause.right_query:type_name -> omniql.RelationalQuery
-	40, // [40:40] is the sub-list for method output_type
-	40, // [40:40] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	6,  // 0: omniql.UniversalQuery.relational:type_name -> omniql.RelationalQuery
+	7,  // 1: omniql.UniversalQuery.document:type_name -> omniql.DocumentQuery
+	8,  // 2: omniql.UniversalQuery.key_value:type_name -> omniql.KeyValueQuery
+	1,  // 3: omniql.Expression.left:type_name -> omniql.Expression
+	1,  // 4: omniql.Expression.right:type_name -> omniql.Expression
+	1,  // 5: omniql.Expression.function_args:type_name -> omniql.Expression
+	3,  // 6: omniql.Expression.case_conditions:type_name -> omniql.CaseCondition
+	1,  // 7: omniql.Expression.case_else:type_name -> omniql.Expression
+	1,  // 8: omniql.QueryCondition.field_expr:type_name -> omniql.Expression
+	1,  // 9: omniql.QueryCondition.value_expr:type_name -> omniql.Expression
+	1,  // 10: omniql.QueryCondition.value2_expr:type_name -> omniql.Expression
+	1,  // 11: omniql.QueryCondition.values_expr:type_name -> omniql.Expression
+	2,  // 12: omniql.QueryCondition.nested:type_name -> omniql.QueryCondition
+	2,  // 13: omniql.CaseCondition.condition:type_name -> omniql.QueryCondition
+	1,  // 14: omniql.CaseCondition.then_expr:type_name -> omniql.Expression
+	1,  // 15: omniql.QueryField.name_expr:type_name -> omniql.Expression
+	1,  // 16: omniql.QueryField.value_expr:type_name -> omniql.Expression
+	1,  // 17: omniql.SelectColumn.expression_obj:type_name -> omniql.Expression
+	2,  // 18: omniql.RelationalQuery.conditions:type_name -> omniql.QueryCondition
+	4,  // 19: omniql.RelationalQuery.fields:type_name -> omniql.QueryField
+	10, // 20: omniql.RelationalQuery.joins:type_name -> omniql.JoinClause
+	11, // 21: omniql.RelationalQuery.aggregate:type_name -> omniql.AggregateClause
+	1,  // 22: omniql.RelationalQuery.group_by:type_name -> omniql.Expression
+	2,  // 23: omniql.RelationalQuery.having:type_name -> omniql.QueryCondition
+	12, // 24: omniql.RelationalQuery.order_by:type_name -> omniql.OrderByClause
+	13, // 25: omniql.RelationalQuery.window_functions:type_name -> omniql.WindowClause
+	14, // 26: omniql.RelationalQuery.cte:type_name -> omniql.CTEClause
+	15, // 27: omniql.RelationalQuery.subquery:type_name -> omniql.SubqueryClause
+	16, // 28: omniql.RelationalQuery.upsert:type_name -> omniql.UpsertClause
+	17, // 29: omniql.RelationalQuery.bulk_data:type_name -> omniql.BulkInsertRow
+	6,  // 30: omniql.RelationalQuery.view_query:type_name -> omniql.RelationalQuery
+	18, // 31: omniql.RelationalQuery.set_operation:type_name -> omniql.SetOperationClause
+	1,  // 32: omniql.RelationalQuery.columns:type_name -> omniql.Expression
+	5,  // 33: omniql.RelationalQuery.select_columns:type_name -> omniql.SelectColumn
+	2,  // 34: omniql.DocumentQuery.conditions:type_name -> omniql.QueryCondition
+	4,  // 35: omniql.DocumentQuery.fields:type_name -> omniql.QueryField
+	10, // 36: omniql.DocumentQuery.joins:type_name -> omniql.JoinClause
+	11, // 37: omniql.DocumentQuery.aggregate:type_name -> omniql.AggregateClause
+	1,  // 38: omniql.DocumentQuery.group_by:type_name -> omniql.Expression
+	12, // 39: omniql.DocumentQuery.order_by:type_name -> omniql.OrderByClause
+	13, // 40: omniql.DocumentQuery.window_functions:type_name -> omniql.WindowClause
+	16, // 41: omniql.DocumentQuery.upsert:type_name -> omniql.UpsertClause
+	17, // 42: omniql.DocumentQuery.bulk_data:type_name -> omniql.BulkInsertRow
+	7,  // 43: omniql.DocumentQuery.view_query:type_name -> omniql.DocumentQuery
+	18, // 44: omniql.DocumentQuery.set_operation:type_name -> omniql.SetOperationClause
+	1,  // 45: omniql.DocumentQuery.columns:type_name -> omniql.Expression
+	5,  // 46: omniql.DocumentQuery.select_columns:type_name -> omniql.SelectColumn
+	2,  // 47: omniql.DocumentQuery.having:type_name -> omniql.QueryCondition
+	9,  // 48: omniql.KeyValueQuery.bulk_pairs:type_name -> omniql.KeyValuePair
+	1,  // 49: omniql.JoinClause.left_expr:type_name -> omniql.Expression
+	1,  // 50: omniql.JoinClause.right_expr:type_name -> omniql.Expression
+	1,  // 51: omniql.AggregateClause.field_expr:type_name -> omniql.Expression
+	1,  // 52: omniql.OrderByClause.field_expr:type_name -> omniql.Expression
+	1,  // 53: omniql.WindowClause.field_expr:type_name -> omniql.Expression
+	1,  // 54: omniql.WindowClause.partition_by:type_name -> omniql.Expression
+	12, // 55: omniql.WindowClause.order_by:type_name -> omniql.OrderByClause
+	6,  // 56: omniql.CTEClause.cte_query:type_name -> omniql.RelationalQuery
+	14, // 57: omniql.CTEClause.additional_ctes:type_name -> omniql.CTEClause
+	1,  // 58: omniql.SubqueryClause.field_expr:type_name -> omniql.Expression
+	6,  // 59: omniql.SubqueryClause.subquery:type_name -> omniql.RelationalQuery
+	1,  // 60: omniql.UpsertClause.conflict_fields:type_name -> omniql.Expression
+	4,  // 61: omniql.UpsertClause.update_fields:type_name -> omniql.QueryField
+	4,  // 62: omniql.BulkInsertRow.fields:type_name -> omniql.QueryField
+	6,  // 63: omniql.SetOperationClause.left_query:type_name -> omniql.RelationalQuery
+	6,  // 64: omniql.SetOperationClause.right_query:type_name -> omniql.RelationalQuery
+	65, // [65:65] is the sub-list for method output_type
+	65, // [65:65] is the sub-list for method input_type
+	65, // [65:65] is the sub-list for extension type_name
+	65, // [65:65] is the sub-list for extension extendee
+	0,  // [0:65] is the sub-list for field type_name
 }
 
 func init() { file_utilities_proto_events_proto_init() }
@@ -2273,17 +2231,13 @@ func file_utilities_proto_events_proto_init() {
 		(*UniversalQuery_Document)(nil),
 		(*UniversalQuery_KeyValue)(nil),
 	}
-	file_utilities_proto_events_proto_msgTypes[6].OneofWrappers = []any{
-		(*QueryField_LiteralValue)(nil),
-		(*QueryField_Expression)(nil),
-	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_utilities_proto_events_proto_rawDesc), len(file_utilities_proto_events_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

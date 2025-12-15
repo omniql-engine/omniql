@@ -17,6 +17,77 @@ message UniversalQuery {
 }
 
 // ============================================
+// 🎯 EXPRESSION (100% TrueAST - Recursive)
+// ============================================
+
+message Expression {
+    string type = 1;  // BINARY, FUNCTION, CASEWHEN, FIELD, LITERAL, WINDOW
+    int32 position = 2;
+    
+    // For leaf nodes (FIELD, LITERAL)
+    string value = 3;
+    
+    // For BINARY expressions
+    Expression left = 4;
+    string operator = 5;
+    Expression right = 6;
+    
+    // For FUNCTION calls
+    string function_name = 7;
+    repeated Expression function_args = 8;
+    
+    // For CASEWHEN
+    repeated CaseCondition case_conditions = 9;
+    Expression case_else = 10;
+}
+
+// ============================================
+// 🔍 CONDITION (100% TrueAST)
+// ============================================
+
+message QueryCondition {
+    Expression field_expr = 1;           // Left side
+    string operator = 2;                 // =, !=, >, <, IN, BETWEEN, etc.
+    Expression value_expr = 3;           // Right side
+    Expression value2_expr = 4;          // For BETWEEN second value
+    repeated Expression values_expr = 5; // For IN operator values
+    string logic = 6;                    // AND, OR
+    repeated QueryCondition nested = 7;  // For parentheses grouping
+    int32 position = 8;
+}
+
+// ============================================
+// 📝 CASE CONDITION (100% TrueAST)
+// ============================================
+
+message CaseCondition {
+    QueryCondition condition = 1;  // WHEN condition
+    Expression then_expr = 2;      // THEN value
+    int32 position = 3;
+}
+
+// ============================================
+// 📦 FIELD (100% TrueAST)
+// ============================================
+
+message QueryField {
+    Expression name_expr = 1;       // Field name
+    Expression value_expr = 2;      // Field value
+    repeated string constraints = 3; // DDL: UNIQUE, NOT_NULL, PRIMARY_KEY
+    int32 position = 4;
+}
+
+// ============================================
+// 📊 SELECT COLUMN (100% TrueAST)
+// ============================================
+
+message SelectColumn {
+    Expression expression_obj = 1;  // The expression
+    string alias = 2;               // Optional alias
+    int32 position = 3;
+}
+
+// ============================================
 // 🏦 RELATIONAL QUERY (SQL Databases)
 // ============================================
 
@@ -27,46 +98,46 @@ message RelationalQuery {
     repeated QueryField fields = 4;
     int32 limit = 5;
     int32 offset = 6;
-    bool distinct = 34;
-    string transaction_id = 35;
+    bool distinct = 7;
+    string transaction_id = 8;
     
-    repeated JoinClause joins = 7;
-    AggregateClause aggregate = 8;
-    repeated string group_by = 9;
-    repeated QueryCondition having = 10;
-    repeated OrderByClause order_by = 11;
+    repeated JoinClause joins = 9;
+    AggregateClause aggregate = 10;
+    repeated Expression group_by = 11;      // 100% TrueAST
+    repeated QueryCondition having = 12;
+    repeated OrderByClause order_by = 13;
     
-    string savepoint_name = 12;
-    repeated string permissions = 13;
-    string permission_target = 14;
-    string role_name = 15;
+    string savepoint_name = 14;
+    repeated string permissions = 15;
+    string permission_target = 16;
+    string role_name = 17;
     
-    repeated WindowClause window_functions = 16;
-    CTEClause cte = 17;
-    SubqueryClause subquery = 18;
-    string pattern = 19;
-    CaseClause case_when = 20;
+    repeated WindowClause window_functions = 18;
+    CTEClause cte = 19;
+    SubqueryClause subquery = 20;
+    string pattern = 21;
     
-    string isolation_level = 21;
-    bool read_only = 22;
+    string isolation_level = 22;
+    bool read_only = 23;
     
-    UpsertClause upsert = 23;
-    repeated BulkInsertRow bulk_data = 24;
+    UpsertClause upsert = 24;
+    repeated BulkInsertRow bulk_data = 25;
     
-    string view_name = 25;
-    string view_query = 26;
-    string database_name = 27;
-    string new_name = 28;
+    string view_name = 26;
+    RelationalQuery view_query = 27;        // 100% TrueAST
+    string database_name = 28;
+    string new_name = 29;
     
-    string user_name = 29;
-    string password = 30;
-    repeated string user_roles = 31;
+    string user_name = 30;
+    string password = 31;
+    repeated string user_roles = 32;
     
-    SetOperationClause set_operation = 32;
-    repeated string columns = 33;
-    repeated SelectColumn select_columns = 36;
-    string session_id = 37;
-    string sql = 38;
+    SetOperationClause set_operation = 33;
+    repeated Expression columns = 34;        // 100% TrueAST
+    repeated SelectColumn select_columns = 35;
+    string session_id = 36;
+    string sql = 37;
+    string alter_action = 38;  // ADD_COLUMN, DROP_COLUMN, RENAME_COLUMN
 }
 
 // ============================================
@@ -83,7 +154,7 @@ message DocumentQuery {
     
     repeated JoinClause joins = 7;
     AggregateClause aggregate = 8;
-    repeated string group_by = 9;
+    repeated Expression group_by = 9;        // 100% TrueAST
     repeated OrderByClause order_by = 10;
     
     string savepoint_name = 11;
@@ -93,29 +164,28 @@ message DocumentQuery {
     
     repeated WindowClause window_functions = 15;
     string pattern = 16;
-    CaseClause case_when = 17;
     
-    string isolation_level = 18;
-    bool read_only = 19;
+    string isolation_level = 17;
+    bool read_only = 18;
     
-    UpsertClause upsert = 20;
-    repeated BulkInsertRow bulk_data = 21;
+    UpsertClause upsert = 19;
+    repeated BulkInsertRow bulk_data = 20;
     
-    string view_name = 22;
-    string view_query = 23;
-    string database_name = 24;
+    string view_name = 21;
+    DocumentQuery view_query = 22;           // 100% TrueAST
+    string database_name = 23;
     
-    string user_name = 25;
-    string password = 26;
-    repeated string user_roles = 27;
-    string new_name = 28;
-    SetOperationClause set_operation = 29;
-    repeated string columns = 30;
-    repeated SelectColumn select_columns = 31;
-    string session_id = 32;
-    repeated QueryCondition having = 33;
-    bool distinct = 34;
-    string query = 35;
+    string user_name = 24;
+    string password = 25;
+    repeated string user_roles = 26;
+    string new_name = 27;
+    SetOperationClause set_operation = 28;
+    repeated Expression columns = 29;         // 100% TrueAST
+    repeated SelectColumn select_columns = 30;
+    string session_id = 31;
+    repeated QueryCondition having = 32;
+    bool distinct = 33;
+    string query = 34;
 }
 
 // ============================================
@@ -137,103 +207,56 @@ message KeyValuePair {
 }
 
 // ============================================
-// 📊 SHARED STRUCTURES
+// 📊 SUPPORTING STRUCTURES (100% TrueAST)
 // ============================================
 
-message QueryCondition {
-    string field = 1;
-    string operator = 2;
-    string value = 3;
-}
-
-message QueryField {
-    string name = 1;
-    string value = 2;
-    repeated string constraints = 3;
-    
-    oneof field_type {
-        string literal_value = 4;
-        FieldExpression expression = 5;
-    }
-}
-
-message FieldExpression {
-    string expression_type = 1;
-    string left_operand = 2;
-    string operator = 3;
-    string right_operand = 4;
-    bool left_is_field = 5;
-    bool right_is_field = 6;
-    string function_name = 7;
-    repeated string function_args = 8;
-    repeated CaseCondition case_conditions = 9;
-    string case_else = 10;
-}
-
-message CaseCondition {
-    string condition = 1;
-    string then_value = 2;
-}
-
-message SelectColumn {
-    string expression = 1;
-    string alias = 2;
-    FieldExpression expression_obj = 3;
-}
-
 message JoinClause {
-    string join_type = 1;
+    string join_type = 1;         // INNER, LEFT, RIGHT, FULL, CROSS
     string table = 2;
-    string left_field = 3;
-    string right_field = 4;
+    Expression left_expr = 3;     // 100% TrueAST
+    Expression right_expr = 4;    // 100% TrueAST
+    int32 position = 5;
 }
 
 message AggregateClause {
-    string function = 1;
-    string field = 2;
+    string function = 1;          // COUNT, SUM, AVG, MIN, MAX
+    Expression field_expr = 2;    // 100% TrueAST
+    int32 position = 3;
 }
 
 message OrderByClause {
-    string field = 1;
-    string direction = 2;
+    Expression field_expr = 1;    // 100% TrueAST
+    string direction = 2;         // ASC, DESC
+    int32 position = 3;
 }
 
 message WindowClause {
-    string function = 1;
-    string alias = 2;
-    repeated string partition_by = 3;
-    repeated OrderByClause order_by = 4;
-    int32 offset = 5;
-    int32 buckets = 6;
+    string function = 1;                    // ROW NUMBER, RANK, etc.
+    Expression field_expr = 2;              // 100% TrueAST
+    string alias = 3;
+    repeated Expression partition_by = 4;   // 100% TrueAST
+    repeated OrderByClause order_by = 5;
+    int32 offset = 6;
+    int32 buckets = 7;
+    int32 position = 8;
 }
 
 message CTEClause {
     string cte_name = 1;
-    string cte_query = 2;
+    RelationalQuery cte_query = 2;          // 100% TrueAST
     bool recursive = 3;
     repeated CTEClause additional_ctes = 4;
 }
 
 message SubqueryClause {
-    string subquery_type = 1;
-    string field = 2;
-    string subquery = 3;
+    string subquery_type = 1;               // IN, EXISTS, NOT_IN, NOT_EXISTS, SCALAR
+    Expression field_expr = 2;              // 100% TrueAST
+    RelationalQuery subquery = 3;           // 100% TrueAST
     string alias = 4;
 }
 
-message CaseClause {
-    repeated CaseWhen when_clauses = 1;
-    string else_value = 2;
-    string alias = 3;
-}
-
-message CaseWhen {
-    string condition = 1;
-    string then_value = 2;
-}
-
 message UpsertClause {
-    repeated string conflict_fields = 1;
+    repeated Expression conflict_fields = 1; // 100% TrueAST
     repeated QueryField update_fields = 2;
     string conflict_action = 3;
 }
@@ -243,7 +266,7 @@ message BulkInsertRow {
 }
 
 message SetOperationClause {
-    string operation_type = 1;
+    string operation_type = 1;              // UNION, UNION ALL, INTERSECT, EXCEPT
     RelationalQuery left_query = 2;
     RelationalQuery right_query = 3;
 }

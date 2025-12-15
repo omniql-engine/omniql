@@ -3,11 +3,73 @@ package postgres
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	
-	"github.com/omniql-engine/omniql/mapping"  // ← ADD THIS LINE
+	"github.com/omniql-engine/omniql/mapping"  
 	pb "github.com/omniql-engine/omniql/utilities/proto"
 )
+
+// ============================================================================
+// NIL-SAFE HELPERS (TrueAST)
+// ============================================================================
+
+func getCondField(cond *pb.QueryCondition) string {
+	if cond == nil || cond.FieldExpr == nil {
+		return ""
+	}
+	return cond.FieldExpr.Value
+}
+
+func getCondValue(cond *pb.QueryCondition) string {
+	if cond == nil || cond.ValueExpr == nil {
+		return ""
+	}
+	return cond.ValueExpr.Value
+}
+
+func getFieldName(field *pb.QueryField) string {
+	if field == nil || field.NameExpr == nil {
+		return ""
+	}
+	return field.NameExpr.Value
+}
+
+func getFieldValue(field *pb.QueryField) string {
+	if field == nil || field.ValueExpr == nil {
+		return ""
+	}
+	return field.ValueExpr.Value
+}
+
+func getOrderByField(ob *pb.OrderByClause) string {
+	if ob == nil || ob.FieldExpr == nil {
+		return ""
+	}
+	return ob.FieldExpr.Value
+}
+
+func getJoinLeft(join *pb.JoinClause) string {
+	if join == nil || join.LeftExpr == nil {
+		return ""
+	}
+	return join.LeftExpr.Value
+}
+
+func getJoinRight(join *pb.JoinClause) string {
+	if join == nil || join.RightExpr == nil {
+		return ""
+	}
+	return join.RightExpr.Value
+}
+
+func getAggField(agg *pb.AggregateClause) string {
+	if agg == nil || agg.FieldExpr == nil {
+		return ""
+	}
+	return agg.FieldExpr.Value
+}
+
 
 // ============================================================================
 // CRUD OPERATIONS - SQL BUILDERS
@@ -18,18 +80,114 @@ func BuildWhereClause(conditions []*pb.QueryCondition, startParamNum int) (strin
 	if len(conditions) == 0 {
 		return "", []interface{}{}
 	}
+	clause, args, _ := buildConditionsRecursive(conditions, startParamNum)
+	return " WHERE " + clause, args
+}
 
-	var whereClauses []string
+func buildConditionsRecursive(conditions []*pb.QueryCondition, startParamNum int) (string, []interface{}, int) {
+	var parts []string
 	var args []interface{}
 	paramNum := startParamNum
 
-	for _, cond := range conditions {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s %s $%d", cond.Field, cond.Operator, paramNum))
-		args = append(args, cond.Value)
-		paramNum++
+	for i, cond := range conditions {
+		var clause string
+		var clauseArgs []interface{}
+		var consumed int
+
+		if len(cond.Nested) > 0 {
+			nestedClause, nestedArgs, nestedConsumed := buildConditionsRecursive(cond.Nested, paramNum)
+			clause = "(" + nestedClause + ")"
+			clauseArgs = nestedArgs
+			consumed = nestedConsumed
+		} else {
+			clause, clauseArgs, consumed = buildSingleCondition(cond, paramNum)
+		}
+
+		if i == 0 {
+			parts = append(parts, clause)
+		} else {
+			logic := cond.Logic
+			if logic == "" {
+				logic = "AND"
+			}
+			parts = append(parts, logic+" "+clause)
+		}
+
+		args = append(args, clauseArgs...)
+		paramNum += consumed
 	}
 
-	return " WHERE " + strings.Join(whereClauses, " AND "), args
+	return strings.Join(parts, " "), args, paramNum - startParamNum
+}
+
+func buildSingleCondition(cond *pb.QueryCondition, paramNum int) (string, []interface{}, int) {
+	// Build field expression (handles BINARY, FUNCTION, FIELD)
+	field := BuildExpressionSQL(cond.FieldExpr)
+	
+	switch cond.Operator {
+	case "IS_NULL":
+		return fmt.Sprintf("%s IS NULL", field), nil, 0
+	case "IS_NOT_NULL":
+		return fmt.Sprintf("%s IS NOT NULL", field), nil, 0
+	case "IN":
+		return buildInClause(field, "IN", cond.ValuesExpr, paramNum)
+	case "NOT_IN":
+		return buildInClause(field, "NOT IN", cond.ValuesExpr, paramNum)
+	case "BETWEEN":
+		return buildBetweenClauseExpr(field, "BETWEEN", cond.ValueExpr, cond.Value2Expr, paramNum)
+	case "NOT_BETWEEN":
+		return buildBetweenClauseExpr(field, "NOT BETWEEN", cond.ValueExpr, cond.Value2Expr, paramNum)
+	default:
+		// Check if ValueExpr is a complex expression (BINARY/FUNCTION)
+		if cond.ValueExpr != nil && (cond.ValueExpr.Type == "BINARY" || cond.ValueExpr.Type == "FUNCTION") {
+			valueSQL := BuildExpressionSQL(cond.ValueExpr)
+			return fmt.Sprintf("%s %s %s", field, cond.Operator, valueSQL), nil, 0
+		}
+		// Simple literal value - parameterize it
+		value := getCondValue(cond)
+		return fmt.Sprintf("%s %s $%d", field, cond.Operator, paramNum), []interface{}{value}, 1
+	}
+}
+
+func buildInClause(field, operator string, values []*pb.Expression, startParam int) (string, []interface{}, int) {
+	if len(values) == 0 {
+		if operator == "IN" {
+			return "1 = 0", nil, 0
+		}
+		return "1 = 1", nil, 0
+	}
+
+	placeholders := make([]string, len(values))
+	args := make([]interface{}, len(values))
+	for i, v := range values {
+		placeholders[i] = fmt.Sprintf("$%d", startParam+i)
+		args[i] = v.Value
+	}
+
+	return fmt.Sprintf("%s %s (%s)", field, operator, strings.Join(placeholders, ", ")), args, len(values)
+}
+
+func buildBetweenClause(field, operator, value1, value2 string, startParam int) (string, []interface{}, int) {
+	return fmt.Sprintf("%s %s $%d AND $%d", field, operator, startParam, startParam+1), []interface{}{value1, value2}, 2
+}
+
+func buildBetweenClauseExpr(field, operator string, value1Expr, value2Expr *pb.Expression, startParam int) (string, []interface{}, int) {
+    // Check if expressions are complex (BINARY/FUNCTION)
+    if value1Expr != nil && (value1Expr.Type == "BINARY" || value1Expr.Type == "FUNCTION") {
+        val1SQL := BuildExpressionSQL(value1Expr)
+        val2SQL := BuildExpressionSQL(value2Expr)
+        return fmt.Sprintf("%s %s %s AND %s", field, operator, val1SQL, val2SQL), nil, 0
+    }
+    // Simple literals - parameterize
+    val1 := ""
+    val2 := ""
+    if value1Expr != nil {
+        val1 = value1Expr.Value
+    }
+    if value2Expr != nil {
+        val2 = value2Expr.Value
+    }
+    return fmt.Sprintf("%s %s $%d AND $%d", field, operator, startParam, startParam+1), []interface{}{val1, val2}, 2
 }
 
 func BuildSelectSQL(query *pb.RelationalQuery) (string, []interface{}) {
@@ -45,26 +203,44 @@ func BuildSelectSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	if len(query.SelectColumns) > 0 {
 		var colParts []string
 		for _, col := range query.SelectColumns {
-			if col.ExpressionObj != nil && col.ExpressionObj.ExpressionType == "CASEWHEN" {
+			if col.ExpressionObj != nil && col.ExpressionObj.Type == "CASEWHEN" {
 				caseSQL := "CASE"
 				for _, cond := range col.ExpressionObj.CaseConditions {
-					caseSQL += fmt.Sprintf(" WHEN %s THEN $%d", cond.Condition, paramNum)
-					args = append(args, cond.ThenValue)
-					paramNum++
+					condSQL := buildConditionSQL(cond.Condition)
+					// Check if THEN is an expression or literal
+					if cond.ThenExpr != nil && (cond.ThenExpr.Type == "BINARY" || cond.ThenExpr.Type == "FUNCTION") {
+						thenSQL := BuildExpressionSQL(cond.ThenExpr)
+						caseSQL += fmt.Sprintf(" WHEN %s THEN %s", condSQL, thenSQL)
+					} else {
+						caseSQL += fmt.Sprintf(" WHEN %s THEN $%d", condSQL, paramNum)
+						args = append(args, cond.ThenExpr.Value)
+						paramNum++
+					}
 				}
-				if col.ExpressionObj.CaseElse != "" {
-					caseSQL += fmt.Sprintf(" ELSE $%d", paramNum)
-					args = append(args, col.ExpressionObj.CaseElse)
-					paramNum++
+				if col.ExpressionObj.CaseElse != nil {
+					// Check if ELSE is an expression or literal
+					if col.ExpressionObj.CaseElse.Type == "BINARY" || col.ExpressionObj.CaseElse.Type == "FUNCTION" {
+						elseSQL := BuildExpressionSQL(col.ExpressionObj.CaseElse)
+						caseSQL += fmt.Sprintf(" ELSE %s", elseSQL)
+					} else {
+						caseSQL += fmt.Sprintf(" ELSE $%d", paramNum)
+						args = append(args, col.ExpressionObj.CaseElse.Value)
+						paramNum++
+					}
 				}
 				caseSQL += " END"
-				
 				if col.Alias != "" {
 					caseSQL += " AS " + col.Alias
 				}
 				colParts = append(colParts, caseSQL)
+			} else if col.ExpressionObj != nil && col.ExpressionObj.Type == "WINDOW" {
+				windowSQL := buildWindowExprSQL(col.ExpressionObj)
+				if col.Alias != "" {
+					windowSQL += " AS " + col.Alias
+				}
+				colParts = append(colParts, windowSQL)
 			} else {
-				colStr := col.Expression
+				colStr := BuildExpressionSQL(col.ExpressionObj)
 				if col.Alias != "" {
 					colStr += " AS " + col.Alias
 				}
@@ -73,18 +249,40 @@ func BuildSelectSQL(query *pb.RelationalQuery) (string, []interface{}) {
 		}
 		columns = strings.Join(colParts, ", ")
 	} else if len(query.Columns) > 0 {
-		columns = strings.Join(query.Columns, ", ")
+		var colStrs []string
+		for _, col := range query.Columns {
+			colStrs = append(colStrs, col.Value)
+		}
+		columns = strings.Join(colStrs, ", ")
 	}
 	
 	sql := fmt.Sprintf("%s %s FROM %s", selectClause, columns, query.Table)
 	whereClause, whereArgs := BuildWhereClause(query.Conditions, paramNum)
 	sql += whereClause
 	args = append(args, whereArgs...)
-	
+
+	// GROUP BY
+	if len(query.GroupBy) > 0 {
+		var groupByStrs []string
+		for _, gb := range query.GroupBy {
+			groupByStrs = append(groupByStrs, gb.Value)
+		}
+		sql += " GROUP BY " + strings.Join(groupByStrs, ", ")
+	}
+
+	// ORDER BY
+	if len(query.OrderBy) > 0 {
+		sql += " ORDER BY "
+		var orderParts []string
+		for _, ob := range query.OrderBy {
+			orderParts = append(orderParts, fmt.Sprintf("%s %s", getOrderByField(ob), ob.Direction))
+		}
+		sql += strings.Join(orderParts, ", ")
+	}
+
 	if query.Limit > 0 {
 		sql += fmt.Sprintf(" LIMIT %d", query.Limit)
 	}
-	
 	if query.Offset > 0 {
 		sql += fmt.Sprintf(" OFFSET %d", query.Offset)
 	}
@@ -92,21 +290,111 @@ func BuildSelectSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	return sql, args
 }
 
+func buildConditionSQL(cond *pb.QueryCondition) string {
+	if cond == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s %s %s", getCondField(cond), cond.Operator, getCondValue(cond))
+}
+
+func buildWindowExprSQL(expr *pb.Expression) string {
+	funcName := strings.ReplaceAll(expr.FunctionName, " ", "_")
+	
+	var funcCall string
+	switch funcName {
+	case "LAG", "LEAD":
+		field := "id"
+		for _, arg := range expr.FunctionArgs {
+			if !strings.HasPrefix(arg.Value, "PARTITION:") && !strings.HasPrefix(arg.Value, "ORDER:") {
+				field = arg.Value
+				break
+			}
+		}
+		funcCall = fmt.Sprintf("%s(%s)", funcName, field)
+	case "NTILE":
+		buckets := "4"
+		for _, arg := range expr.FunctionArgs {
+			if !strings.HasPrefix(arg.Value, "PARTITION:") && !strings.HasPrefix(arg.Value, "ORDER:") {
+				buckets = arg.Value
+				break
+			}
+		}
+		funcCall = fmt.Sprintf("%s(%s)", funcName, buckets)
+	default:
+		funcCall = fmt.Sprintf("%s()", funcName)
+	}
+	
+	var partitionParts, orderParts []string
+	for _, arg := range expr.FunctionArgs {
+		if strings.HasPrefix(arg.Value, "PARTITION:") {
+			partitionParts = append(partitionParts, strings.TrimPrefix(arg.Value, "PARTITION:"))
+		} else if strings.HasPrefix(arg.Value, "ORDER:") {
+			parts := strings.Split(strings.TrimPrefix(arg.Value, "ORDER:"), ":")
+			if len(parts) >= 2 {
+				orderParts = append(orderParts, fmt.Sprintf("%s %s", parts[0], parts[1]))
+			} else if len(parts) == 1 {
+				orderParts = append(orderParts, parts[0]+" ASC")
+			}
+		}
+	}
+	
+	overClause := " OVER ("
+	if len(partitionParts) > 0 {
+		overClause += "PARTITION BY " + strings.Join(partitionParts, ", ")
+		if len(orderParts) > 0 {
+			overClause += " "
+		}
+	}
+	if len(orderParts) > 0 {
+		overClause += "ORDER BY " + strings.Join(orderParts, ", ")
+	}
+	overClause += ")"
+	
+	return funcCall + overClause
+}
+
+// BuildExpressionSQL converts an Expression to SQL
+func BuildExpressionSQL(expr *pb.Expression) string {
+	if expr == nil {
+		return ""
+	}
+	switch expr.Type {
+	case "BINARY":
+		left := BuildExpressionSQL(expr.Left)
+		right := BuildExpressionSQL(expr.Right)
+		
+		// Add parentheses around nested BINARY to preserve precedence
+		if expr.Left != nil && expr.Left.Type == "BINARY" {
+			left = "(" + left + ")"
+		}
+		if expr.Right != nil && expr.Right.Type == "BINARY" {
+			right = "(" + right + ")"
+		}
+		
+		return fmt.Sprintf("%s %s %s", left, expr.Operator, right)
+	case "FUNCTION":
+		var args []string
+		for _, arg := range expr.FunctionArgs {
+			args = append(args, BuildExpressionSQL(arg))
+		}
+		return fmt.Sprintf("%s(%s)", expr.FunctionName, strings.Join(args, ", "))
+	default:
+		return expr.Value
+	}
+}
+
 func BuildInsertSQL(query *pb.RelationalQuery) (string, []interface{}) {
-	var fields []string
-	var placeholders []string
+	var fields, placeholders []string
 	var args []interface{}
 
 	for i, field := range query.Fields {
-		fields = append(fields, field.Name)
+		fields = append(fields, getFieldName(field))
 		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
-		args = append(args, field.Value)
+		args = append(args, getFieldValue(field))
 	}
 
 	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-		query.Table,
-		strings.Join(fields, ", "),
-		strings.Join(placeholders, ", "))
+		query.Table, strings.Join(fields, ", "), strings.Join(placeholders, ", "))
 
 	return sql, args
 }
@@ -117,83 +405,39 @@ func BuildUpdateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	paramNum := 1
 	
 	for _, field := range query.Fields {
-		if expr := field.GetExpression(); expr != nil {
-			switch expr.ExpressionType {
-			case "BINARY":
-				var left, right string
-				
-				if strings.HasPrefix(expr.LeftOperand, "(") && strings.HasSuffix(expr.LeftOperand, ")") {
-					left = expr.LeftOperand
-				} else if expr.LeftIsField {
-					left = expr.LeftOperand
-				} else {
-					left = fmt.Sprintf("$%d", paramNum)
-					args = append(args, expr.LeftOperand)
-					paramNum++
-				}
-				
-				if strings.HasPrefix(expr.RightOperand, "(") && strings.HasSuffix(expr.RightOperand, ")") {
-					right = expr.RightOperand
-				} else if expr.RightIsField {
-					right = expr.RightOperand
-				} else {
-					right = fmt.Sprintf("$%d", paramNum)
-					args = append(args, expr.RightOperand)
-					paramNum++
-				}
-				
-				setParts = append(setParts, fmt.Sprintf("%s = %s %s %s", 
-					field.Name, left, expr.Operator, right))
-			
-			case "FUNCTION":
-				var funcArgs []string
-				for _, arg := range expr.FunctionArgs {
-					if isIdentifier(arg) {
-						funcArgs = append(funcArgs, arg)
-					} else {
-						funcArgs = append(funcArgs, fmt.Sprintf("$%d", paramNum))
-						args = append(args, strings.Trim(arg, "'\""))
-						paramNum++
-					}
-				}
-				
-				funcSQL := fmt.Sprintf("%s(%s)", expr.FunctionName, strings.Join(funcArgs, ", "))
-				setParts = append(setParts, fmt.Sprintf("%s = %s", field.Name, funcSQL))
-			
-			case "CASEWHEN":
-				caseSQL := "CASE"
-				
-				for _, cond := range expr.CaseConditions {
-					caseSQL += fmt.Sprintf(" WHEN %s THEN ", cond.Condition)
-					caseSQL += fmt.Sprintf("$%d", paramNum)
-					args = append(args, strings.Trim(cond.ThenValue, "'\""))
-					paramNum++
-				}
-				
-				if expr.CaseElse != "" {
-					caseSQL += " ELSE "
-					caseSQL += fmt.Sprintf("$%d", paramNum)
-					args = append(args, strings.Trim(expr.CaseElse, "'\""))
-					paramNum++
-				}
-				
-				caseSQL += " END"
-				setParts = append(setParts, fmt.Sprintf("%s = %s", field.Name, caseSQL))
+		fieldName := getFieldName(field)
+		
+		if field.ValueExpr != nil && field.ValueExpr.Type == "BINARY" {
+			exprSQL := BuildExpressionSQL(field.ValueExpr)
+			setParts = append(setParts, fmt.Sprintf("%s = %s", fieldName, exprSQL))
+		
+		} else if field.ValueExpr != nil && field.ValueExpr.Type == "FUNCTION" {
+			exprSQL := BuildExpressionSQL(field.ValueExpr)
+			setParts = append(setParts, fmt.Sprintf("%s = %s", fieldName, exprSQL))
+		
+		} else if field.ValueExpr != nil && field.ValueExpr.Type == "CASEWHEN" {
+			caseSQL := "CASE"
+			for _, cond := range field.ValueExpr.CaseConditions {
+				condSQL := buildConditionSQL(cond.Condition)
+				caseSQL += fmt.Sprintf(" WHEN %s THEN $%d", condSQL, paramNum)
+				args = append(args, strings.Trim(cond.ThenExpr.Value, "'\""))
+				paramNum++
 			}
+			if field.ValueExpr.CaseElse != nil {
+				caseSQL += fmt.Sprintf(" ELSE $%d", paramNum)
+				args = append(args, strings.Trim(field.ValueExpr.CaseElse.Value, "'\""))
+				paramNum++
+			}
+			caseSQL += " END"
+			setParts = append(setParts, fmt.Sprintf("%s = %s", fieldName, caseSQL))
 		} else {
-			literal := field.GetLiteralValue()
-			if literal == "" {
-				literal = field.Value
-			}
-			
-			setParts = append(setParts, fmt.Sprintf("%s = $%d", field.Name, paramNum))
-			args = append(args, literal)
+			setParts = append(setParts, fmt.Sprintf("%s = $%d", fieldName, paramNum))
+			args = append(args, getFieldValue(field))
 			paramNum++
 		}
 	}
 	
 	sql := fmt.Sprintf("UPDATE %s SET %s", query.Table, strings.Join(setParts, ", "))
-	
 	whereClause, whereArgs := BuildWhereClause(query.Conditions, paramNum)
 	sql += whereClause
 	args = append(args, whereArgs...)
@@ -201,15 +445,12 @@ func BuildUpdateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	return sql, args
 }
 
-// isIdentifier checks if a string is a column name or a literal value (private helper)
 func isIdentifier(s string) bool {
 	s = strings.TrimSpace(s)
-	
 	if (strings.HasPrefix(s, "'") && strings.HasSuffix(s, "'")) ||
 		(strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"")) {
 		return false
 	}
-	
 	matched, _ := regexp.MatchString(`^-?\d+(\.\d+)?$`, s)
 	return !matched
 }
@@ -226,34 +467,36 @@ func BuildUpsertSQL(query *pb.RelationalQuery) (string, []interface{}) {
 		return BuildInsertSQL(query)
 	}
 
-	var fields []string
-	var placeholders []string
+	var fields, placeholders []string
 	var args []interface{}
 
 	for i, field := range query.Fields {
-		fields = append(fields, field.Name)
+		fields = append(fields, getFieldName(field))
 		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
-		args = append(args, field.Value)
+		args = append(args, getFieldValue(field))
 	}
 
 	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-		query.Table,
-		strings.Join(fields, ", "),
-		strings.Join(placeholders, ", "))
+		query.Table, strings.Join(fields, ", "), strings.Join(placeholders, ", "))
 
 	if len(query.Upsert.ConflictFields) > 0 {
-		sql += fmt.Sprintf(" ON CONFLICT (%s) DO UPDATE SET ",
-			strings.Join(query.Upsert.ConflictFields, ", "))
+		var conflictFieldStrs []string
+		for _, cf := range query.Upsert.ConflictFields {
+			conflictFieldStrs = append(conflictFieldStrs, cf.Value)
+		}
+		sql += fmt.Sprintf(" ON CONFLICT (%s) DO UPDATE SET ", strings.Join(conflictFieldStrs, ", "))
 
 		var updateParts []string
-		for _, field := range query.Upsert.UpdateFields {
-			updateParts = append(updateParts, fmt.Sprintf("%s = EXCLUDED.%s", field.Name, field.Name))
+	for _, field := range query.Upsert.UpdateFields {
+			fieldName := getFieldName(field)
+			updateParts = append(updateParts, fmt.Sprintf("%s = EXCLUDED.%s", fieldName, fieldName))
 		}
 		sql += strings.Join(updateParts, ", ")
 	}
 
-	return sql, args
+		return sql, args
 }
+
 
 func BuildBulkInsertSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	if len(query.BulkData) == 0 {
@@ -263,7 +506,7 @@ func BuildBulkInsertSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	firstRow := query.BulkData[0]
 	var fields []string
 	for _, field := range firstRow.Fields {
-		fields = append(fields, field.Name)
+		fields = append(fields, getFieldName(field))
 	}
 
 	var valueClauses []string
@@ -274,16 +517,14 @@ func BuildBulkInsertSQL(query *pb.RelationalQuery) (string, []interface{}) {
 		var placeholders []string
 		for _, field := range row.Fields {
 			placeholders = append(placeholders, fmt.Sprintf("$%d", paramNum))
-			args = append(args, field.Value)
+			args = append(args, getFieldValue(field))
 			paramNum++
 		}
 		valueClauses = append(valueClauses, fmt.Sprintf("(%s)", strings.Join(placeholders, ", ")))
 	}
 
 	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s",
-		query.Table,
-		strings.Join(fields, ", "),
-		strings.Join(valueClauses, ", "))
+		query.Table, strings.Join(fields, ", "), strings.Join(valueClauses, ", "))
 
 	return sql, args
 }
@@ -292,7 +533,6 @@ func BuildBulkInsertSQL(query *pb.RelationalQuery) (string, []interface{}) {
 // DCL OPERATIONS - SQL BUILDERS
 // ============================================================================
 
-// BuildGrantSQL constructs GRANT statement
 func BuildGrantSQL(query *pb.RelationalQuery) (string, error) {
 	if len(query.Permissions) == 0 {
 		return "", fmt.Errorf("no permissions specified for GRANT")
@@ -300,15 +540,10 @@ func BuildGrantSQL(query *pb.RelationalQuery) (string, error) {
 	if query.PermissionTarget == "" {
 		return "", fmt.Errorf("no target user/role specified for GRANT")
 	}
-
 	privileges := TranslatePermissions(query.Permissions)
-	return fmt.Sprintf("GRANT %s ON %s TO %s",
-		strings.Join(privileges, ", "),
-		query.Table,
-		query.PermissionTarget), nil
+	return fmt.Sprintf("GRANT %s ON %s TO %s", strings.Join(privileges, ", "), query.Table, query.PermissionTarget), nil
 }
 
-// BuildRevokeSQL constructs REVOKE statement
 func BuildRevokeSQL(query *pb.RelationalQuery) (string, error) {
 	if len(query.Permissions) == 0 {
 		return "", fmt.Errorf("no permissions specified for REVOKE")
@@ -316,30 +551,21 @@ func BuildRevokeSQL(query *pb.RelationalQuery) (string, error) {
 	if query.PermissionTarget == "" {
 		return "", fmt.Errorf("no target user/role specified for REVOKE")
 	}
-
 	privileges := TranslatePermissions(query.Permissions)
-	return fmt.Sprintf("REVOKE %s ON %s FROM %s",
-		strings.Join(privileges, ", "),
-		query.Table,
-		query.PermissionTarget), nil
+	return fmt.Sprintf("REVOKE %s ON %s FROM %s", strings.Join(privileges, ", "), query.Table, query.PermissionTarget), nil
 }
 
-// BuildCreateUserSQL constructs CREATE USER statement
 func BuildCreateUserSQL(query *pb.RelationalQuery) (string, error) {
 	if query.UserName == "" {
 		return "", fmt.Errorf("no username specified for CREATE USER")
 	}
-
 	sql := fmt.Sprintf("CREATE USER %s", query.UserName)
-
 	if query.Password != "" {
 		sql += fmt.Sprintf(" WITH PASSWORD '%s'", query.Password)
 	}
-
 	return sql, nil
 }
 
-// BuildDropUserSQL constructs DROP USER statement
 func BuildDropUserSQL(query *pb.RelationalQuery) (string, error) {
 	if query.UserName == "" {
 		return "", fmt.Errorf("no username specified for DROP USER")
@@ -347,22 +573,17 @@ func BuildDropUserSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("DROP USER IF EXISTS %s", query.UserName), nil
 }
 
-// BuildAlterUserSQL constructs ALTER USER statement
 func BuildAlterUserSQL(query *pb.RelationalQuery) (string, error) {
 	if query.UserName == "" {
 		return "", fmt.Errorf("no username specified for ALTER USER")
 	}
-
 	sql := fmt.Sprintf("ALTER USER %s", query.UserName)
-
 	if query.Password != "" {
 		sql += fmt.Sprintf(" WITH PASSWORD '%s'", query.Password)
 	}
-
 	return sql, nil
 }
 
-// BuildCreateRoleSQL constructs CREATE ROLE statement
 func BuildCreateRoleSQL(query *pb.RelationalQuery) (string, error) {
 	if query.RoleName == "" {
 		return "", fmt.Errorf("no role name specified for CREATE ROLE")
@@ -370,7 +591,6 @@ func BuildCreateRoleSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("CREATE ROLE %s", query.RoleName), nil
 }
 
-// BuildDropRoleSQL constructs DROP ROLE statement
 func BuildDropRoleSQL(query *pb.RelationalQuery) (string, error) {
 	if query.RoleName == "" {
 		return "", fmt.Errorf("no role name specified for DROP ROLE")
@@ -378,7 +598,6 @@ func BuildDropRoleSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("DROP ROLE IF EXISTS %s", query.RoleName), nil
 }
 
-// BuildAssignRoleSQL constructs GRANT role TO user statement
 func BuildAssignRoleSQL(query *pb.RelationalQuery) (string, error) {
 	if query.RoleName == "" {
 		return "", fmt.Errorf("no role name specified for ASSIGN ROLE")
@@ -389,7 +608,6 @@ func BuildAssignRoleSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("GRANT %s TO %s", query.RoleName, query.UserName), nil
 }
 
-// BuildRevokeRoleSQL constructs REVOKE role FROM user statement
 func BuildRevokeRoleSQL(query *pb.RelationalQuery) (string, error) {
 	if query.RoleName == "" {
 		return "", fmt.Errorf("no role name specified for REVOKE ROLE")
@@ -400,10 +618,8 @@ func BuildRevokeRoleSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("REVOKE %s FROM %s", query.RoleName, query.UserName), nil
 }
 
-// TranslatePermissions converts OQL permissions to PostgreSQL privileges (exported for reuse)
 func TranslatePermissions(permissions []string) []string {
 	var pgPrivileges []string
-
 	for _, perm := range permissions {
 		switch strings.ToUpper(perm) {
 		case "READ":
@@ -420,80 +636,71 @@ func TranslatePermissions(permissions []string) []string {
 			pgPrivileges = append(pgPrivileges, perm)
 		}
 	}
-
 	return pgPrivileges
 }
-
 
 // ============================================================================
 // DDL OPERATIONS - SQL BUILDERS
 // ============================================================================
 
-// BuildCreateTableSQL constructs SQL for CREATE TABLE
 func BuildCreateTableSQL(query *pb.RelationalQuery) string {
 	if len(query.Fields) == 0 {
 		return ""
 	}
-
 	var columns []string
 	for _, field := range query.Fields {
-		columnDef := buildColumnDefinition(field.Name, field.Value, field.Constraints)
+		columnDef := buildColumnDefinition(field.NameExpr.Value, field.ValueExpr.Value, field.Constraints)
 		columns = append(columns, columnDef)
 	}
-
-	return fmt.Sprintf("CREATE TABLE %s (%s)",
-		query.Table,
-		strings.Join(columns, ", "))
+	return fmt.Sprintf("CREATE TABLE %s (%s)", query.Table, strings.Join(columns, ", "))
 }
 
-// BuildAlterTableSQL constructs SQL for ALTER TABLE
 func BuildAlterTableSQL(query *pb.RelationalQuery) (string, error) {
-	if len(query.Conditions) == 0 {
+	if query.AlterAction == "" {
 		return "", fmt.Errorf("no ALTER operation specified")
 	}
 
-	alterOp := query.Conditions[0].Field
-	alterValue := query.Conditions[0].Value
-
-	switch strings.ToUpper(alterOp) {
+	switch strings.ToUpper(query.AlterAction) {
 	case "ADD_COLUMN":
-		parts := strings.Split(alterValue, ":")
-		if len(parts) != 2 {
-			return "", fmt.Errorf("invalid ADD_COLUMN format: expected 'name:type'")
+		if len(query.Fields) == 0 {
+			return "", fmt.Errorf("no column specified for ADD_COLUMN")
 		}
-		columnDef := buildColumnDefinition(parts[0], parts[1], nil)
+		colName := getFieldName(query.Fields[0])
+		colType := getFieldValue(query.Fields[0])
+		columnDef := buildColumnDefinition(colName, colType, query.Fields[0].Constraints)
 		return fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", query.Table, columnDef), nil
 
 	case "DROP_COLUMN":
-		return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", query.Table, alterValue), nil
+		if len(query.Fields) == 0 {
+			return "", fmt.Errorf("no column specified for DROP_COLUMN")
+		}
+		colName := getFieldName(query.Fields[0])
+		return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", query.Table, colName), nil
 
 	case "RENAME_COLUMN":
-		parts := strings.Split(alterValue, ":")
-		if len(parts) != 2 {
-			return "", fmt.Errorf("invalid RENAME_COLUMN format: expected 'old:new'")
+		if len(query.Fields) == 0 {
+			return "", fmt.Errorf("no column specified for RENAME_COLUMN")
 		}
-		return fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s",
-			query.Table, parts[0], parts[1]), nil
+		oldName := getFieldName(query.Fields[0])
+		newName := getFieldValue(query.Fields[0])
+		return fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", query.Table, oldName, newName), nil
 
 	case "RENAME_TABLE":
-		return fmt.Sprintf("ALTER TABLE %s RENAME TO %s", query.Table, alterValue), nil
+		return fmt.Sprintf("ALTER TABLE %s RENAME TO %s", query.Table, query.NewName), nil
 
 	default:
-		return "", fmt.Errorf("unknown ALTER operation: %s", alterOp)
+		return "", fmt.Errorf("unknown ALTER operation: %s", query.AlterAction)
 	}
 }
 
-// BuildDropTableSQL constructs SQL for DROP TABLE
 func BuildDropTableSQL(query *pb.RelationalQuery) string {
 	return fmt.Sprintf("DROP TABLE IF EXISTS %s", query.Table)
 }
 
-// BuildTruncateTableSQL constructs SQL for TRUNCATE TABLE
 func BuildTruncateTableSQL(query *pb.RelationalQuery) string {
 	return fmt.Sprintf("TRUNCATE TABLE %s", query.Table)
 }
 
-// BuildRenameTableSQL constructs SQL for RENAME TABLE
 func BuildRenameTableSQL(query *pb.RelationalQuery) (string, error) {
 	if query.Table == "" {
 		return "", fmt.Errorf("no table name specified")
@@ -504,14 +711,13 @@ func BuildRenameTableSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("ALTER TABLE %s RENAME TO %s", query.Table, query.NewName), nil
 }
 
-// BuildCreateIndexSQL constructs SQL for CREATE INDEX
 func BuildCreateIndexSQL(query *pb.RelationalQuery) (string, error) {
 	if len(query.Fields) == 0 {
 		return "", fmt.Errorf("no index details specified")
 	}
 
-	indexName := query.Fields[0].Name
-	columnName := query.Fields[0].Value
+	indexName := query.Fields[0].NameExpr.Value
+	columnName := query.Fields[0].ValueExpr.Value
 	
 	indexType := "INDEX"
 	if len(query.Fields[0].Constraints) > 0 {
@@ -523,21 +729,16 @@ func BuildCreateIndexSQL(query *pb.RelationalQuery) (string, error) {
 		}
 	}
 	
-	return fmt.Sprintf("CREATE %s %s ON %s (%s)",
-		indexType, indexName, query.Table, columnName), nil
+	return fmt.Sprintf("CREATE %s %s ON %s (%s)", indexType, indexName, query.Table, columnName), nil
 }
 
-// BuildDropIndexSQL constructs SQL for DROP INDEX
 func BuildDropIndexSQL(query *pb.RelationalQuery) (string, error) {
 	if len(query.Fields) == 0 {
 		return "", fmt.Errorf("no index name specified")
 	}
-
-	indexName := query.Fields[0].Name
-	return fmt.Sprintf("DROP INDEX IF EXISTS %s", indexName), nil
+	return fmt.Sprintf("DROP INDEX IF EXISTS %s", query.Fields[0].NameExpr.Value), nil
 }
 
-// BuildCreateDatabaseSQL constructs SQL for CREATE DATABASE
 func BuildCreateDatabaseSQL(query *pb.RelationalQuery) (string, error) {
 	if query.DatabaseName == "" {
 		return "", fmt.Errorf("no database name specified")
@@ -545,7 +746,6 @@ func BuildCreateDatabaseSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("CREATE DATABASE %s", query.DatabaseName), nil
 }
 
-// BuildDropDatabaseSQL constructs SQL for DROP DATABASE
 func BuildDropDatabaseSQL(query *pb.RelationalQuery) (string, error) {
 	if query.DatabaseName == "" {
 		return "", fmt.Errorf("no database name specified")
@@ -553,18 +753,34 @@ func BuildDropDatabaseSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("DROP DATABASE IF EXISTS %s", query.DatabaseName), nil
 }
 
-// BuildCreateViewSQL constructs SQL for CREATE VIEW
+// formatLiteral formats a value as SQL literal (for VIEW definitions)
+func formatLiteral(v interface{}) string {
+	s := fmt.Sprintf("%v", v)
+	if _, err := strconv.ParseFloat(s, 64); err == nil {
+		return s
+	}
+	upper := strings.ToUpper(s)
+	if upper == "TRUE" || upper == "FALSE" {
+		return upper
+	}
+	return fmt.Sprintf("'%s'", strings.ReplaceAll(s, "'", "''"))
+}
+
 func BuildCreateViewSQL(query *pb.RelationalQuery) (string, error) {
 	if query.ViewName == "" {
 		return "", fmt.Errorf("no view name specified")
 	}
-	if query.ViewQuery == "" {
+	if query.ViewQuery == nil {
 		return "", fmt.Errorf("no view query specified")
 	}
-	return fmt.Sprintf("CREATE VIEW %s AS %s", query.ViewName, query.ViewQuery), nil
+	viewSQL, args := BuildSelectSQL(query.ViewQuery)
+	for i, arg := range args {
+		placeholder := fmt.Sprintf("$%d", i+1)
+		viewSQL = strings.Replace(viewSQL, placeholder, formatLiteral(arg), 1)
+	}
+	return fmt.Sprintf("CREATE VIEW %s AS %s", query.ViewName, viewSQL), nil
 }
 
-// BuildDropViewSQL constructs SQL for DROP VIEW
 func BuildDropViewSQL(query *pb.RelationalQuery) (string, error) {
 	if query.ViewName == "" {
 		return "", fmt.Errorf("no view name specified")
@@ -572,32 +788,32 @@ func BuildDropViewSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("DROP VIEW IF EXISTS %s", query.ViewName), nil
 }
 
-// BuildAlterViewSQL constructs SQL for ALTER VIEW (CREATE OR REPLACE)
 func BuildAlterViewSQL(query *pb.RelationalQuery) (string, error) {
 	if query.ViewName == "" {
 		return "", fmt.Errorf("no view name specified")
 	}
-	if query.ViewQuery == "" {
+	if query.ViewQuery == nil {
 		return "", fmt.Errorf("no view query specified")
 	}
-	return fmt.Sprintf("CREATE OR REPLACE VIEW %s AS %s", query.ViewName, query.ViewQuery), nil
+	viewSQL, args := BuildSelectSQL(query.ViewQuery)
+	for i, arg := range args {
+		placeholder := fmt.Sprintf("$%d", i+1)
+		viewSQL = strings.Replace(viewSQL, placeholder, formatLiteral(arg), 1)
+	}
+	return fmt.Sprintf("CREATE OR REPLACE VIEW %s AS %s", query.ViewName, viewSQL), nil
 }
 
-// buildColumnDefinition translates column info to SQL column definition (private helper)
 func buildColumnDefinition(name, columnType string, constraints []string) string {
-	// Extract base type and parameters
 	baseType := columnType
 	params := ""
 
 	if idx := strings.Index(columnType, "("); idx != -1 {
 		baseType = columnType[:idx]
-		endIdx := strings.Index(columnType, ")")
-		if endIdx != -1 {
+		if endIdx := strings.Index(columnType, ")"); endIdx != -1 {
 			params = columnType[idx : endIdx+1]
 		}
 	}
 
-	// Look up PostgreSQL type from TypeMap
 	pgType := baseType
 	if mapping.TypeMap != nil && mapping.TypeMap["PostgreSQL"] != nil {
 		if mappedType, exists := mapping.TypeMap["PostgreSQL"][strings.ToUpper(baseType)]; exists {
@@ -605,19 +821,14 @@ func buildColumnDefinition(name, columnType string, constraints []string) string
 		}
 	}
 
-	// Build base column definition
 	columnDef := fmt.Sprintf("%s %s%s", name, pgType, params)
 
-	// Add PRIMARY KEY for AUTO type
 	if strings.ToUpper(baseType) == "AUTO" {
-		columnDef = fmt.Sprintf("%s SERIAL PRIMARY KEY", name)
-		return columnDef
+		return fmt.Sprintf("%s SERIAL PRIMARY KEY", name)
 	}
 
-	// Add constraints
 	for _, constraint := range constraints {
-		constraintUpper := strings.ToUpper(constraint)
-		switch constraintUpper {
+		switch strings.ToUpper(constraint) {
 		case "UNIQUE":
 			columnDef += " UNIQUE"
 		case "NOT_NULL":
@@ -634,24 +845,25 @@ func buildColumnDefinition(name, columnType string, constraints []string) string
 // DQL OPERATIONS - SQL BUILDERS
 // ============================================================================
 
-// BuildJoinSQL constructs SQL for JOIN operations
 func BuildJoinSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	selectClause := "*"
 	if len(query.Columns) > 0 {
-		selectClause = strings.Join(query.Columns, ", ")
+		var colStrs []string
+		for _, col := range query.Columns {
+			colStrs = append(colStrs, col.Value)
+		}
+		selectClause = strings.Join(colStrs, ", ")
 	}
 	
 	sql := fmt.Sprintf("SELECT %s FROM %s", selectClause, query.Table)
-
 	var args []interface{}
 	paramNum := 1
 
 	for _, join := range query.Joins {
 		joinType := strings.ToUpper(join.JoinType)
 		sql += fmt.Sprintf(" %s JOIN %s", joinType, join.Table)
-
-		if joinType != "CROSS" {
-			sql += fmt.Sprintf(" ON %s = %s", join.LeftField, join.RightField)
+	if joinType != "CROSS" {
+			sql += fmt.Sprintf(" ON %s = %s", getJoinLeft(join), getJoinRight(join))
 		}
 	}
 
@@ -664,17 +876,9 @@ func BuildJoinSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	return sql, args
 }
 
-// BuildAggregateSQL constructs SQL for aggregate operations
 func BuildAggregateSQL(query *pb.RelationalQuery) (string, []interface{}) {
-	fmt.Printf("🔍 DEBUG - Aggregate Function: %s\n", query.Aggregate.Function)
-	fmt.Printf("🔍 DEBUG - Aggregate Field: %s\n", query.Aggregate.Field)
-	fmt.Printf("🔍 DEBUG - GROUP BY: %v\n", query.GroupBy)
-	fmt.Printf("🔍 DEBUG - DISTINCT: %v\n", query.Distinct)
-	fmt.Printf("🔍 DEBUG - LIMIT: %d\n", query.Limit)
-	fmt.Printf("🔍 DEBUG - OFFSET: %d\n", query.Offset)
-	
 	aggFunc := strings.ToUpper(query.Aggregate.Function)
-	aggField := query.Aggregate.Field
+	aggField := getAggField(query.Aggregate)
 	
 	var args []interface{}
 	paramNum := 1
@@ -684,23 +888,20 @@ func BuildAggregateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	var innerSQL string
 	if needsSubquery {
 		innerSQL = fmt.Sprintf("SELECT * FROM %s", query.Table)
-		
 		if len(query.Conditions) > 0 {
 			whereClause, whereArgs := BuildWhereClause(query.Conditions, paramNum)
 			innerSQL += whereClause
 			args = append(args, whereArgs...)
 			paramNum += len(whereArgs)
 		}
-		
 		if len(query.OrderBy) > 0 {
 			innerSQL += " ORDER BY "
 			orderParts := []string{}
 			for _, ob := range query.OrderBy {
-				orderParts = append(orderParts, fmt.Sprintf("%s %s", ob.Field, ob.Direction))
+				orderParts = append(orderParts, fmt.Sprintf("%s %s", getOrderByField(ob), ob.Direction))
 			}
 			innerSQL += strings.Join(orderParts, ", ")
 		}
-		
 		if query.Limit > 0 {
 			innerSQL += fmt.Sprintf(" LIMIT %d", query.Limit)
 		}
@@ -711,20 +912,19 @@ func BuildAggregateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	
 	var selectClause string
 	if aggField == "" || aggField == "*" {
-		if query.Distinct {
-			selectClause = "SELECT COUNT(*)"
-		} else {
-			selectClause = "SELECT COUNT(*)"
-		}
+		selectClause = "SELECT COUNT(*)"
 	} else {
 		if query.Distinct {
 			selectClause = fmt.Sprintf("SELECT %s(DISTINCT %s)", aggFunc, aggField)
 		} else {
 			selectClause = fmt.Sprintf("SELECT %s(%s)", aggFunc, aggField)
 		}
-		
 		if len(query.GroupBy) > 0 {
-			selectClause += ", " + strings.Join(query.GroupBy, ", ")
+			var groupByStrs []string
+			for _, gb := range query.GroupBy {
+				groupByStrs = append(groupByStrs, gb.Value)
+			}
+			selectClause += ", " + strings.Join(groupByStrs, ", ")
 		}
 	}
 	
@@ -733,7 +933,6 @@ func BuildAggregateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 		sql = fmt.Sprintf("%s FROM (%s) AS subquery", selectClause, innerSQL)
 	} else {
 		sql = fmt.Sprintf("%s FROM %s", selectClause, query.Table)
-		
 		if len(query.Conditions) > 0 {
 			whereClause, whereArgs := BuildWhereClause(query.Conditions, paramNum)
 			sql += whereClause
@@ -743,7 +942,11 @@ func BuildAggregateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	}
 	
 	if len(query.GroupBy) > 0 {
-		sql += " GROUP BY " + strings.Join(query.GroupBy, ", ")
+		var groupByStrs []string
+		for _, gb := range query.GroupBy {
+			groupByStrs = append(groupByStrs, gb.Value)
+		}
+		sql += " GROUP BY " + strings.Join(groupByStrs, ", ")
 	}
 	
 	if len(query.Having) > 0 {
@@ -757,7 +960,7 @@ func BuildAggregateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 		sql += " ORDER BY "
 		orderParts := []string{}
 		for _, ob := range query.OrderBy {
-			orderParts = append(orderParts, fmt.Sprintf("%s %s", ob.Field, ob.Direction))
+			orderParts = append(orderParts, fmt.Sprintf("%s %s", getOrderByField(ob), ob.Direction))
 		}
 		sql += strings.Join(orderParts, ", ")
 	}
@@ -774,7 +977,6 @@ func BuildAggregateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	return sql, args
 }
 
-// BuildWindowFunctionSQL constructs SQL for window functions
 func BuildWindowFunctionSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	if len(query.WindowFunctions) == 0 {
 		return "", []interface{}{}
@@ -787,37 +989,35 @@ func BuildWindowFunctionSQL(query *pb.RelationalQuery) (string, []interface{}) {
 		funcName = strings.ReplaceAll(funcName, " ", "_")
 
 		var windowFunc string
-
 		switch funcName {
 		case "LAG", "LEAD":
 			field := wf.Alias
 			if field == "" {
 				field = "id"
 			}
-
 			offset := wf.Offset
 			if offset == 0 {
 				offset = 1
 			}
 			windowFunc = fmt.Sprintf("%s(%s, %d)", funcName, field, offset)
-
 		case "NTILE":
 			buckets := wf.Buckets
 			if buckets == 0 {
 				buckets = 4
 			}
 			windowFunc = fmt.Sprintf("%s(%d)", funcName, buckets)
-
 		default:
 			windowFunc = fmt.Sprintf("%s()", funcName)
 		}
 
 		overClause := " OVER ("
-
 		if len(wf.PartitionBy) > 0 {
-			overClause += "PARTITION BY " + strings.Join(wf.PartitionBy, ", ")
+			var partitionStrs []string
+			for _, pb := range wf.PartitionBy {
+				partitionStrs = append(partitionStrs, pb.Value)
+			}
+			overClause += "PARTITION BY " + strings.Join(partitionStrs, ", ")
 		}
-
 		if len(wf.OrderBy) > 0 {
 			if len(wf.PartitionBy) > 0 {
 				overClause += " "
@@ -825,18 +1025,16 @@ func BuildWindowFunctionSQL(query *pb.RelationalQuery) (string, []interface{}) {
 			overClause += "ORDER BY "
 			orderParts := []string{}
 			for _, ob := range wf.OrderBy {
-				orderParts = append(orderParts, fmt.Sprintf("%s %s", ob.Field, ob.Direction))
+				orderParts = append(orderParts, fmt.Sprintf("%s %s", getOrderByField(ob), ob.Direction))
 			}
 			overClause += strings.Join(orderParts, ", ")
 		}
-
 		overClause += ")"
 
 		alias := wf.Alias
 		if alias == "" {
 			alias = strings.ToLower(funcName)
 		}
-
 		if funcName == "LAG" || funcName == "LEAD" {
 			alias = strings.ToLower(funcName) + "_result"
 		}
@@ -845,7 +1043,6 @@ func BuildWindowFunctionSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	}
 
 	sql := fmt.Sprintf("SELECT %s FROM %s", strings.Join(selectParts, ", "), query.Table)
-
 	var args []interface{}
 	paramNum := 1
 
@@ -858,51 +1055,42 @@ func BuildWindowFunctionSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	return sql, args
 }
 
-// BuildCTESQL constructs SQL for CTEs
 func BuildCTESQL(query *pb.RelationalQuery) string {
 	if query.Cte == nil {
 		return ""
 	}
-
-	sql := fmt.Sprintf("WITH %s AS (%s) %s",
-		query.Cte.CteName,
-		query.Cte.CteQuery,
-		query.Table,
-	)
-
-	return sql
+	cteSQL, _ := BuildSelectSQL(query.Cte.CteQuery)
+	return fmt.Sprintf("WITH %s AS (%s) %s", query.Cte.CteName, cteSQL, query.Table)
 }
 
-// BuildSubquerySQL constructs SQL for subqueries
 func BuildSubquerySQL(query *pb.RelationalQuery) (string, []interface{}) {
 	subqueryType := strings.ToUpper(query.Subquery.SubqueryType)
-
 	sql := fmt.Sprintf("SELECT * FROM %s WHERE ", query.Table)
-
 	var args []interface{}
 
 	if len(query.Conditions) > 0 {
 		whereParts := []string{}
 		for _, cond := range query.Conditions {
-			whereParts = append(whereParts, fmt.Sprintf("%s %s $%d", cond.Field, cond.Operator, len(args)+1))
-			args = append(args, cond.Value)
+			whereParts = append(whereParts, fmt.Sprintf("%s %s $%d", cond.FieldExpr.Value, cond.Operator, len(args)+1))
+			args = append(args, cond.ValueExpr.Value)
 		}
 		sql += strings.Join(whereParts, " AND ") + " AND "
 	}
 
+	subField := query.Subquery.FieldExpr.Value
+	subquerySQL, _ := BuildSelectSQL(query.Subquery.Subquery)
+
 	if subqueryType == "IN" {
-		sql += fmt.Sprintf("%s IN (%s)", query.Subquery.Field, query.Subquery.Subquery)
+		sql += fmt.Sprintf("%s IN (%s)", subField, subquerySQL)
 	} else if subqueryType == "EXISTS" {
-		sql += fmt.Sprintf("EXISTS (%s)", query.Subquery.Subquery)
+		sql += fmt.Sprintf("EXISTS (%s)", subquerySQL)
 	}
 
 	return sql, args
 }
 
-// BuildLikeSQL constructs SQL for LIKE operations
 func BuildLikeSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	sql := fmt.Sprintf("SELECT * FROM %s", query.Table)
-
 	var args []interface{}
 	paramNum := 1
 
@@ -915,35 +1103,30 @@ func BuildLikeSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	return sql, args
 }
 
-// BuildCaseSQL constructs SQL for CASE statements
 func BuildCaseSQL(query *pb.RelationalQuery) string {
-	if query.CaseWhen == nil {
-		return ""
+	if len(query.SelectColumns) > 0 {
+		for _, col := range query.SelectColumns {
+			if col.ExpressionObj != nil && col.ExpressionObj.Type == "CASEWHEN" {
+				caseSQL := "CASE"
+				for _, when := range col.ExpressionObj.CaseConditions {
+					condSQL := buildConditionSQL(when.Condition)
+					caseSQL += fmt.Sprintf(" WHEN %s THEN %s", condSQL, when.ThenExpr.Value)
+				}
+				if col.ExpressionObj.CaseElse != nil {
+					caseSQL += fmt.Sprintf(" ELSE %s", col.ExpressionObj.CaseElse.Value)
+				}
+				caseSQL += " END"
+				alias := col.Alias
+				if alias == "" {
+					alias = "case_result"
+				}
+				return fmt.Sprintf("SELECT *, %s AS %s FROM %s", caseSQL, alias, query.Table)
+			}
+		}
 	}
-
-	caseSQL := "CASE"
-
-	for _, when := range query.CaseWhen.WhenClauses {
-		caseSQL += fmt.Sprintf(" WHEN %s THEN %s", when.Condition, when.ThenValue)
-	}
-
-	if query.CaseWhen.ElseValue != "" {
-		caseSQL += fmt.Sprintf(" ELSE %s", query.CaseWhen.ElseValue)
-	}
-
-	caseSQL += " END"
-
-	alias := query.CaseWhen.Alias
-	if alias == "" {
-		alias = "case_result"
-	}
-
-	sql := fmt.Sprintf("SELECT *, %s AS %s FROM %s", caseSQL, alias, query.Table)
-
-	return sql
+	return ""
 }
 
-// BuildSetOperationSQL constructs SQL for set operations
 func BuildSetOperationSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	if query.SetOperation == nil {
 		return "", []interface{}{}
@@ -960,24 +1143,19 @@ func BuildSetOperationSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	allArgs = append(allArgs, rightArgs...)
 
 	operationType := strings.ToUpper(query.SetOperation.OperationType)
-
 	if operationType == "UNION_ALL" {
 		operationType = "UNION ALL"
 	}
 
-	sql := fmt.Sprintf("(%s) %s (%s)", leftSQL, operationType, rightSQL)
-
-	return sql, allArgs
+	return fmt.Sprintf("(%s) %s (%s)", leftSQL, operationType, rightSQL), allArgs
 }
 
-// BuildQuerySQL constructs a SELECT query from a RelationalQuery
 func BuildQuerySQL(query *pb.RelationalQuery, argOffset int) (string, []interface{}) {
 	if query.Aggregate != nil {
 		return BuildAggregateSQL(query)
 	}
 
 	sql := fmt.Sprintf("SELECT * FROM %s", query.Table)
-
 	var args []interface{}
 	paramNum := argOffset + 1
 
@@ -992,7 +1170,7 @@ func BuildQuerySQL(query *pb.RelationalQuery, argOffset int) (string, []interfac
 		sql += " ORDER BY "
 		orderParts := []string{}
 		for _, ob := range query.OrderBy {
-			orderParts = append(orderParts, fmt.Sprintf("%s %s", ob.Field, ob.Direction))
+			orderParts = append(orderParts, fmt.Sprintf("%s %s", getOrderByField(ob), ob.Direction))
 		}
 		sql += strings.Join(orderParts, ", ")
 	}
@@ -1007,46 +1185,28 @@ func BuildQuerySQL(query *pb.RelationalQuery, argOffset int) (string, []interfac
 	return sql, args
 }
 
-// BuildHavingClause constructs HAVING clause
 func BuildHavingClause(conditions []*pb.QueryCondition, startParamNum int) (string, []interface{}) {
 	if len(conditions) == 0 {
 		return "", []interface{}{}
 	}
-
-	var havingClauses []string
-	var args []interface{}
-	paramNum := startParamNum
-
-	for _, cond := range conditions {
-		havingClauses = append(havingClauses, fmt.Sprintf("%s %s $%d", cond.Field, cond.Operator, paramNum))
-		args = append(args, cond.Value)
-		paramNum++
-	}
-
-	return " HAVING " + strings.Join(havingClauses, " AND "), args
+	clause, args, _ := buildConditionsRecursive(conditions, startParamNum)
+	return " HAVING " + clause, args
 }
-
 
 // ============================================================================
 // TCL OPERATIONS - SQL BUILDERS
 // ============================================================================
 
-// BuildSetTransactionSQL constructs SET TRANSACTION statement for options
 func BuildSetTransactionSQL(query *pb.RelationalQuery) (string, error) {
 	parts := []string{"SET TRANSACTION"}
 	var options []string
 
-	// Add isolation level
 	if query.IsolationLevel != "" {
-		isolationLevel := TranslateIsolationLevel(query.IsolationLevel)
-		options = append(options, fmt.Sprintf("ISOLATION LEVEL %s", isolationLevel))
+		options = append(options, fmt.Sprintf("ISOLATION LEVEL %s", TranslateIsolationLevel(query.IsolationLevel)))
 	}
-
-	// Add read-only/read-write mode
 	if query.ReadOnly {
 		options = append(options, "READ ONLY")
 	}
-
 	if len(options) == 0 {
 		return "", fmt.Errorf("no transaction options specified")
 	}
@@ -1055,7 +1215,6 @@ func BuildSetTransactionSQL(query *pb.RelationalQuery) (string, error) {
 	return strings.Join(parts, " "), nil
 }
 
-// BuildSavepointSQL constructs SAVEPOINT statement
 func BuildSavepointSQL(query *pb.RelationalQuery) (string, error) {
 	if query.SavepointName == "" {
 		return "", fmt.Errorf("savepoint name is required")
@@ -1063,7 +1222,6 @@ func BuildSavepointSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("SAVEPOINT %s", query.SavepointName), nil
 }
 
-// BuildRollbackToSavepointSQL constructs ROLLBACK TO SAVEPOINT statement
 func BuildRollbackToSavepointSQL(query *pb.RelationalQuery) (string, error) {
 	if query.SavepointName == "" {
 		return "", fmt.Errorf("savepoint name is required")
@@ -1071,7 +1229,6 @@ func BuildRollbackToSavepointSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("ROLLBACK TO SAVEPOINT %s", query.SavepointName), nil
 }
 
-// BuildReleaseSavepointSQL constructs RELEASE SAVEPOINT statement
 func BuildReleaseSavepointSQL(query *pb.RelationalQuery) (string, error) {
 	if query.SavepointName == "" {
 		return "", fmt.Errorf("savepoint name is required")
@@ -1079,16 +1236,8 @@ func BuildReleaseSavepointSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("RELEASE SAVEPOINT %s", query.SavepointName), nil
 }
 
-// TranslateIsolationLevel converts OQL isolation level to PostgreSQL format
 func TranslateIsolationLevel(level string) string {
-	// Normalize input
 	level = strings.ToUpper(strings.TrimSpace(level))
-
-	// PostgreSQL isolation levels:
-	// - READ UNCOMMITTED (treated as READ COMMITTED by PostgreSQL)
-	// - READ COMMITTED (default)
-	// - REPEATABLE READ
-	// - SERIALIZABLE
 	switch level {
 	case "READ_UNCOMMITTED", "READ UNCOMMITTED":
 		return "READ UNCOMMITTED"
@@ -1099,6 +1248,6 @@ func TranslateIsolationLevel(level string) string {
 	case "SERIALIZABLE":
 		return "SERIALIZABLE"
 	default:
-		return "READ COMMITTED" // Default
+		return "READ COMMITTED"
 	}
 }
