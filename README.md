@@ -58,7 +58,7 @@ SCAN 0 MATCH user:* COUNT 10
 
 ## ✨ Features
 
-### 🏗️ Production-Ready Architecture (v1.0)
+### 🏗️ Production-Ready Architecture (v2.0)
 
 - ✅ **TrueAST Parser** - 100% expression-based AST, recursive structures everywhere
 - ✅ **Bidirectional Translation** - OQL ↔ Native (PostgreSQL, MySQL, MongoDB, Redis)
@@ -339,7 +339,7 @@ omniql/
 
 ---
 
-## 🎉 What's New in v1.0
+## 🎉 What's New in v2.0
 
 ### Major Features
 
@@ -386,19 +386,19 @@ We welcome contributions! OmniQL is open-source and community-driven.
 
 ## 🗺️ Roadmap
 
-### v1.1 (Planned)
+### v2.1 (Planned)
 - [ ] Advanced JOIN operations (LATERAL, CROSS APPLY)
 - [ ] More window functions (FIRST_VALUE, LAST_VALUE, CUME_DIST)
 - [ ] Enhanced CTEs (recursive CTEs)
 - [ ] Performance optimizations
 
-### v1.2 (Planned)
+### v2.2 (Planned)
 - [ ] JavaScript/TypeScript SDK
 - [ ] Python SDK
 - [ ] Query optimization hints
 - [ ] Execution plan analysis
 
-### v2.0 (Future)
+### v3.0 (Future)
 - [ ] Additional databases (CassandraDB, TimescaleDB, ClickHouse)
 - [ ] GraphQL-style nested queries
 - [ ] Query result caching
