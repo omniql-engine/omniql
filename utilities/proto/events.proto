@@ -138,6 +138,59 @@ message RelationalQuery {
     string session_id = 36;
     string sql = 37;
     string alter_action = 38;  // ADD_COLUMN, DROP_COLUMN, RENAME_COLUMN
+
+    // PostgreSQL-specific DDL
+    string sequence_name = 39;
+    int64 sequence_start = 40;
+    int64 sequence_increment = 41;
+    int64 sequence_min = 42;
+    int64 sequence_max = 43;
+    int64 sequence_cache = 44;
+    bool sequence_cycle = 45;
+    int64 sequence_restart = 46;
+    
+    string extension_name = 47;
+    
+    string schema_name = 48;
+    string schema_owner = 49;
+    
+    string type_name = 50;
+    string type_kind = 51;
+    repeated string enum_values = 52;
+    string enum_value = 53;
+    string new_enum_value = 54;
+    
+    string domain_name = 55;
+    string domain_type = 56;
+    string domain_default = 57;
+    string domain_constraint = 58;
+    
+    string func_name = 59;
+    string func_body = 60;
+    repeated string func_args = 61;
+    string func_returns = 62;
+    string func_language = 63;
+    string func_owner = 64;
+    
+    string trigger_name = 65;
+    string trigger_timing = 66;
+    string trigger_events = 67;
+    string trigger_for_each = 68;
+    
+    string policy_name = 69;
+    string policy_for = 70;
+    string policy_to = 71;
+    string policy_using = 72;
+    string policy_check = 73;
+    
+    string rule_name = 74;
+    string rule_event = 75;
+    string rule_action = 76;
+    
+    string comment_target = 77;
+    string comment_text = 78;
+    
+    bool cascade = 79;
 }
 
 // ============================================

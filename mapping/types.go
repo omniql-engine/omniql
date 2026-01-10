@@ -60,7 +60,7 @@ var TypeMap = map[string]map[string]string{
 		"FLOAT":     "DOUBLE",
 		
 		// String Types
-		"STRING":    "VARCHAR",
+		"STRING":    "VARCHAR(255)",
 		"TEXT":      "TEXT",
 		"CHAR":      "CHAR",
 		

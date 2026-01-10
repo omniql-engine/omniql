@@ -40,6 +40,52 @@ func (p *Parser) parseDDL(op string) (*ast.QueryNode, error) {
 		return p.parseCreateCollection()
 	case "DROP COLLECTION":
 		return p.parseDropCollection()
+		
+	// PostgreSQL-specific DDL
+	case "CREATE SEQUENCE":
+		return p.parseCreateSequence()
+	case "ALTER SEQUENCE":
+		return p.parseAlterSequence()
+	case "DROP SEQUENCE":
+		return p.parseDropSequence()
+	case "CREATE EXTENSION":
+		return p.parseCreateExtension()
+	case "DROP EXTENSION":
+		return p.parseDropExtension()
+	case "CREATE SCHEMA":
+		return p.parseCreateSchema()
+	case "DROP SCHEMA":
+		return p.parseDropSchema()
+	case "CREATE TYPE":
+		return p.parseCreateType()
+	case "ALTER TYPE":
+		return p.parseAlterType()
+	case "DROP TYPE":
+		return p.parseDropType()
+	case "CREATE DOMAIN":
+		return p.parseCreateDomain()
+	case "DROP DOMAIN":
+		return p.parseDropDomain()
+	case "CREATE FUNCTION":
+		return p.parseCreateFunction()
+	case "ALTER FUNCTION":
+		return p.parseAlterFunction()
+	case "DROP FUNCTION":
+		return p.parseDropFunction()
+	case "CREATE TRIGGER":
+		return p.parseCreateTrigger()
+	case "DROP TRIGGER":
+		return p.parseDropTrigger()
+	case "CREATE POLICY":
+		return p.parseCreatePolicy()
+	case "DROP POLICY":
+		return p.parseDropPolicy()
+	case "CREATE RULE":
+		return p.parseCreateRule()
+	case "DROP RULE":
+		return p.parseDropRule()
+	case "COMMENT ON":
+		return p.parseCommentOn()
 	default:
 		return nil, p.error("unimplemented DDL: " + op)
 	}

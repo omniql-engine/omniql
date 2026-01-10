@@ -83,6 +83,21 @@ func (t *Tokenizer) tokenize() ([]Token, error) {
 			t.addToken(TOKEN_SEMICOLON, ";")
 			t.advance()
 			continue
+		case '$':
+			if t.pos+1 < len(t.input) && t.input[t.pos+1] == '$' {
+				token, err := t.scanDollarQuote()
+				if err != nil {
+					return nil, err
+				}
+				t.tokens = append(t.tokens, token)
+				continue
+			}
+			return nil, &ParseError{
+				Message:  fmt.Sprintf("unexpected character '%c'", ch),
+				Position: t.pos,
+				Line:     t.line,
+				Column:   t.column,
+			}
 		case '\'', '"':
 			token, err := t.scanString(ch)
 			if err != nil {
@@ -245,6 +260,44 @@ func (t *Tokenizer) scanString(quote byte) (Token, error) {
 	
 	return Token{}, &ParseError{
 		Message:  fmt.Sprintf("unclosed string, expected %c", quote),
+		Position: startPos,
+		Line:     startLine,
+		Column:   startCol,
+	}
+}
+
+func (t *Tokenizer) scanDollarQuote() (Token, error) {
+	startPos := t.pos
+	startLine := t.line
+	startCol := t.column
+	
+	t.advance() // Skip first $
+	t.advance() // Skip second $
+	
+	var value strings.Builder
+	for t.pos < len(t.input) {
+		if t.input[t.pos] == '$' && t.pos+1 < len(t.input) && t.input[t.pos+1] == '$' {
+			t.advance() // Skip first $
+			t.advance() // Skip second $
+			return Token{
+				Type:     TOKEN_STRING,
+				Value:    value.String(),
+				Position: startPos,
+				Line:     startLine,
+				Column:   startCol,
+			}, nil
+		}
+		
+		if t.input[t.pos] == '\n' {
+			t.line++
+			t.column = 0
+		}
+		value.WriteByte(t.input[t.pos])
+		t.advance()
+	}
+	
+	return Token{}, &ParseError{
+		Message:  "unclosed dollar-quoted string, expected $$",
 		Position: startPos,
 		Line:     startLine,
 		Column:   startCol,

@@ -31,6 +31,8 @@ var OperationGroups = map[string]string{
 	"ALTER VIEW":        "DDL",
 	"RENAME TABLE":      "DDL",
 
+
+
 	// ↓↓↓ PG SPECIFIC↓↓↓
 	"CREATE SEQUENCE":   "DDL",
 	"ALTER SEQUENCE":    "DDL",
@@ -229,6 +231,30 @@ var OperationMap = map[string]map[string]string{
 		"DROP VIEW":       "drop_view",
 		"ALTER VIEW": "alter_view",
 		"RENAME TABLE":    "alter_table_rename",
+
+		// PostgreSQL-specific DDL
+		"CREATE SEQUENCE":  "create_sequence",
+		"ALTER SEQUENCE":   "alter_sequence",
+		"DROP SEQUENCE":    "drop_sequence",
+		"CREATE EXTENSION": "create_extension",
+		"DROP EXTENSION":   "drop_extension",
+		"CREATE SCHEMA":    "create_schema",
+		"DROP SCHEMA":      "drop_schema",
+		"CREATE TYPE":      "create_type",
+		"ALTER TYPE":       "alter_type",
+		"DROP TYPE":        "drop_type",
+		"CREATE DOMAIN":    "create_domain",
+		"DROP DOMAIN":      "drop_domain",
+		"CREATE FUNCTION":  "create_function",
+		"ALTER FUNCTION":   "alter_function",
+		"DROP FUNCTION":    "drop_function",
+		"CREATE TRIGGER":   "create_trigger",
+		"DROP TRIGGER":     "drop_trigger",
+		"CREATE POLICY":    "create_policy",
+		"DROP POLICY":      "drop_policy",
+		"CREATE RULE":      "create_rule",
+		"DROP RULE":        "drop_rule",
+		"COMMENT ON":       "comment_on",
 		
 		// ========== GROUP 3: DQL Operations ==========
 		// JOIN operations

@@ -711,13 +711,15 @@ func IsLetter(r rune) bool {
 // ============================================================================
 
 func ParseMongoValue(value string) interface{} {
-	var floatNum float64
-	if _, err := fmt.Sscanf(value, "%f", &floatNum); err == nil {
-		if floatNum == float64(int(floatNum)) {
-			return int(floatNum)
-		}
-		return floatNum
+	// Try parsing as int first (requires full string match)
+	if intVal, err := strconv.Atoi(value); err == nil {
+		return intVal
 	}
+	// Try parsing as float (requires full string match)
+	if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
+		return floatVal
+	}
+	// Return as string (preserves ObjectID strings)
 	return value
 }
 

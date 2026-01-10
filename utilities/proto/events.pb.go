@@ -567,8 +567,50 @@ type RelationalQuery struct {
 	SessionId        string                 `protobuf:"bytes,36,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	Sql              string                 `protobuf:"bytes,37,opt,name=sql,proto3" json:"sql,omitempty"`
 	AlterAction      string                 `protobuf:"bytes,38,opt,name=alter_action,json=alterAction,proto3" json:"alter_action,omitempty"` // ADD_COLUMN, DROP_COLUMN, RENAME_COLUMN
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// PostgreSQL-specific DDL
+	SequenceName      string   `protobuf:"bytes,39,opt,name=sequence_name,json=sequenceName,proto3" json:"sequence_name,omitempty"`
+	SequenceStart     int64    `protobuf:"varint,40,opt,name=sequence_start,json=sequenceStart,proto3" json:"sequence_start,omitempty"`
+	SequenceIncrement int64    `protobuf:"varint,41,opt,name=sequence_increment,json=sequenceIncrement,proto3" json:"sequence_increment,omitempty"`
+	SequenceMin       int64    `protobuf:"varint,42,opt,name=sequence_min,json=sequenceMin,proto3" json:"sequence_min,omitempty"`
+	SequenceMax       int64    `protobuf:"varint,43,opt,name=sequence_max,json=sequenceMax,proto3" json:"sequence_max,omitempty"`
+	SequenceCache     int64    `protobuf:"varint,44,opt,name=sequence_cache,json=sequenceCache,proto3" json:"sequence_cache,omitempty"`
+	SequenceCycle     bool     `protobuf:"varint,45,opt,name=sequence_cycle,json=sequenceCycle,proto3" json:"sequence_cycle,omitempty"`
+	SequenceRestart   int64    `protobuf:"varint,46,opt,name=sequence_restart,json=sequenceRestart,proto3" json:"sequence_restart,omitempty"`
+	ExtensionName     string   `protobuf:"bytes,47,opt,name=extension_name,json=extensionName,proto3" json:"extension_name,omitempty"`
+	SchemaName        string   `protobuf:"bytes,48,opt,name=schema_name,json=schemaName,proto3" json:"schema_name,omitempty"`
+	SchemaOwner       string   `protobuf:"bytes,49,opt,name=schema_owner,json=schemaOwner,proto3" json:"schema_owner,omitempty"`
+	TypeName          string   `protobuf:"bytes,50,opt,name=type_name,json=typeName,proto3" json:"type_name,omitempty"`
+	TypeKind          string   `protobuf:"bytes,51,opt,name=type_kind,json=typeKind,proto3" json:"type_kind,omitempty"`
+	EnumValues        []string `protobuf:"bytes,52,rep,name=enum_values,json=enumValues,proto3" json:"enum_values,omitempty"`
+	EnumValue         string   `protobuf:"bytes,53,opt,name=enum_value,json=enumValue,proto3" json:"enum_value,omitempty"`
+	NewEnumValue      string   `protobuf:"bytes,54,opt,name=new_enum_value,json=newEnumValue,proto3" json:"new_enum_value,omitempty"`
+	DomainName        string   `protobuf:"bytes,55,opt,name=domain_name,json=domainName,proto3" json:"domain_name,omitempty"`
+	DomainType        string   `protobuf:"bytes,56,opt,name=domain_type,json=domainType,proto3" json:"domain_type,omitempty"`
+	DomainDefault     string   `protobuf:"bytes,57,opt,name=domain_default,json=domainDefault,proto3" json:"domain_default,omitempty"`
+	DomainConstraint  string   `protobuf:"bytes,58,opt,name=domain_constraint,json=domainConstraint,proto3" json:"domain_constraint,omitempty"`
+	FuncName          string   `protobuf:"bytes,59,opt,name=func_name,json=funcName,proto3" json:"func_name,omitempty"`
+	FuncBody          string   `protobuf:"bytes,60,opt,name=func_body,json=funcBody,proto3" json:"func_body,omitempty"`
+	FuncArgs          []string `protobuf:"bytes,61,rep,name=func_args,json=funcArgs,proto3" json:"func_args,omitempty"`
+	FuncReturns       string   `protobuf:"bytes,62,opt,name=func_returns,json=funcReturns,proto3" json:"func_returns,omitempty"`
+	FuncLanguage      string   `protobuf:"bytes,63,opt,name=func_language,json=funcLanguage,proto3" json:"func_language,omitempty"`
+	FuncOwner         string   `protobuf:"bytes,64,opt,name=func_owner,json=funcOwner,proto3" json:"func_owner,omitempty"`
+	TriggerName       string   `protobuf:"bytes,65,opt,name=trigger_name,json=triggerName,proto3" json:"trigger_name,omitempty"`
+	TriggerTiming     string   `protobuf:"bytes,66,opt,name=trigger_timing,json=triggerTiming,proto3" json:"trigger_timing,omitempty"`
+	TriggerEvents     string   `protobuf:"bytes,67,opt,name=trigger_events,json=triggerEvents,proto3" json:"trigger_events,omitempty"`
+	TriggerForEach    string   `protobuf:"bytes,68,opt,name=trigger_for_each,json=triggerForEach,proto3" json:"trigger_for_each,omitempty"`
+	PolicyName        string   `protobuf:"bytes,69,opt,name=policy_name,json=policyName,proto3" json:"policy_name,omitempty"`
+	PolicyFor         string   `protobuf:"bytes,70,opt,name=policy_for,json=policyFor,proto3" json:"policy_for,omitempty"`
+	PolicyTo          string   `protobuf:"bytes,71,opt,name=policy_to,json=policyTo,proto3" json:"policy_to,omitempty"`
+	PolicyUsing       string   `protobuf:"bytes,72,opt,name=policy_using,json=policyUsing,proto3" json:"policy_using,omitempty"`
+	PolicyCheck       string   `protobuf:"bytes,73,opt,name=policy_check,json=policyCheck,proto3" json:"policy_check,omitempty"`
+	RuleName          string   `protobuf:"bytes,74,opt,name=rule_name,json=ruleName,proto3" json:"rule_name,omitempty"`
+	RuleEvent         string   `protobuf:"bytes,75,opt,name=rule_event,json=ruleEvent,proto3" json:"rule_event,omitempty"`
+	RuleAction        string   `protobuf:"bytes,76,opt,name=rule_action,json=ruleAction,proto3" json:"rule_action,omitempty"`
+	CommentTarget     string   `protobuf:"bytes,77,opt,name=comment_target,json=commentTarget,proto3" json:"comment_target,omitempty"`
+	CommentText       string   `protobuf:"bytes,78,opt,name=comment_text,json=commentText,proto3" json:"comment_text,omitempty"`
+	Cascade           bool     `protobuf:"varint,79,opt,name=cascade,proto3" json:"cascade,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RelationalQuery) Reset() {
@@ -865,6 +907,293 @@ func (x *RelationalQuery) GetAlterAction() string {
 		return x.AlterAction
 	}
 	return ""
+}
+
+func (x *RelationalQuery) GetSequenceName() string {
+	if x != nil {
+		return x.SequenceName
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetSequenceStart() int64 {
+	if x != nil {
+		return x.SequenceStart
+	}
+	return 0
+}
+
+func (x *RelationalQuery) GetSequenceIncrement() int64 {
+	if x != nil {
+		return x.SequenceIncrement
+	}
+	return 0
+}
+
+func (x *RelationalQuery) GetSequenceMin() int64 {
+	if x != nil {
+		return x.SequenceMin
+	}
+	return 0
+}
+
+func (x *RelationalQuery) GetSequenceMax() int64 {
+	if x != nil {
+		return x.SequenceMax
+	}
+	return 0
+}
+
+func (x *RelationalQuery) GetSequenceCache() int64 {
+	if x != nil {
+		return x.SequenceCache
+	}
+	return 0
+}
+
+func (x *RelationalQuery) GetSequenceCycle() bool {
+	if x != nil {
+		return x.SequenceCycle
+	}
+	return false
+}
+
+func (x *RelationalQuery) GetSequenceRestart() int64 {
+	if x != nil {
+		return x.SequenceRestart
+	}
+	return 0
+}
+
+func (x *RelationalQuery) GetExtensionName() string {
+	if x != nil {
+		return x.ExtensionName
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetSchemaName() string {
+	if x != nil {
+		return x.SchemaName
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetSchemaOwner() string {
+	if x != nil {
+		return x.SchemaOwner
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetTypeName() string {
+	if x != nil {
+		return x.TypeName
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetTypeKind() string {
+	if x != nil {
+		return x.TypeKind
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetEnumValues() []string {
+	if x != nil {
+		return x.EnumValues
+	}
+	return nil
+}
+
+func (x *RelationalQuery) GetEnumValue() string {
+	if x != nil {
+		return x.EnumValue
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetNewEnumValue() string {
+	if x != nil {
+		return x.NewEnumValue
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetDomainName() string {
+	if x != nil {
+		return x.DomainName
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetDomainType() string {
+	if x != nil {
+		return x.DomainType
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetDomainDefault() string {
+	if x != nil {
+		return x.DomainDefault
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetDomainConstraint() string {
+	if x != nil {
+		return x.DomainConstraint
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetFuncName() string {
+	if x != nil {
+		return x.FuncName
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetFuncBody() string {
+	if x != nil {
+		return x.FuncBody
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetFuncArgs() []string {
+	if x != nil {
+		return x.FuncArgs
+	}
+	return nil
+}
+
+func (x *RelationalQuery) GetFuncReturns() string {
+	if x != nil {
+		return x.FuncReturns
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetFuncLanguage() string {
+	if x != nil {
+		return x.FuncLanguage
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetFuncOwner() string {
+	if x != nil {
+		return x.FuncOwner
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetTriggerName() string {
+	if x != nil {
+		return x.TriggerName
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetTriggerTiming() string {
+	if x != nil {
+		return x.TriggerTiming
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetTriggerEvents() string {
+	if x != nil {
+		return x.TriggerEvents
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetTriggerForEach() string {
+	if x != nil {
+		return x.TriggerForEach
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetPolicyName() string {
+	if x != nil {
+		return x.PolicyName
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetPolicyFor() string {
+	if x != nil {
+		return x.PolicyFor
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetPolicyTo() string {
+	if x != nil {
+		return x.PolicyTo
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetPolicyUsing() string {
+	if x != nil {
+		return x.PolicyUsing
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetPolicyCheck() string {
+	if x != nil {
+		return x.PolicyCheck
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetRuleName() string {
+	if x != nil {
+		return x.RuleName
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetRuleEvent() string {
+	if x != nil {
+		return x.RuleEvent
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetRuleAction() string {
+	if x != nil {
+		return x.RuleAction
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetCommentTarget() string {
+	if x != nil {
+		return x.CommentTarget
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetCommentText() string {
+	if x != nil {
+		return x.CommentText
+	}
+	return ""
+}
+
+func (x *RelationalQuery) GetCascade() bool {
+	if x != nil {
+		return x.Cascade
+	}
+	return false
 }
 
 type DocumentQuery struct {
@@ -1960,7 +2289,7 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\fSelectColumn\x129\n" +
 	"\x0eexpression_obj\x18\x01 \x01(\v2\x12.omniql.ExpressionR\rexpressionObj\x12\x14\n" +
 	"\x05alias\x18\x02 \x01(\tR\x05alias\x12\x1a\n" +
-	"\bposition\x18\x03 \x01(\x05R\bposition\"\xe8\v\n" +
+	"\bposition\x18\x03 \x01(\x05R\bposition\"\x80\x17\n" +
 	"\x0fRelationalQuery\x12\x1c\n" +
 	"\toperation\x18\x01 \x01(\tR\toperation\x12\x14\n" +
 	"\x05table\x18\x02 \x01(\tR\x05table\x126\n" +
@@ -2005,7 +2334,58 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"\n" +
 	"session_id\x18$ \x01(\tR\tsessionId\x12\x10\n" +
 	"\x03sql\x18% \x01(\tR\x03sql\x12!\n" +
-	"\falter_action\x18& \x01(\tR\valterAction\"\xcb\n" +
+	"\falter_action\x18& \x01(\tR\valterAction\x12#\n" +
+	"\rsequence_name\x18' \x01(\tR\fsequenceName\x12%\n" +
+	"\x0esequence_start\x18( \x01(\x03R\rsequenceStart\x12-\n" +
+	"\x12sequence_increment\x18) \x01(\x03R\x11sequenceIncrement\x12!\n" +
+	"\fsequence_min\x18* \x01(\x03R\vsequenceMin\x12!\n" +
+	"\fsequence_max\x18+ \x01(\x03R\vsequenceMax\x12%\n" +
+	"\x0esequence_cache\x18, \x01(\x03R\rsequenceCache\x12%\n" +
+	"\x0esequence_cycle\x18- \x01(\bR\rsequenceCycle\x12)\n" +
+	"\x10sequence_restart\x18. \x01(\x03R\x0fsequenceRestart\x12%\n" +
+	"\x0eextension_name\x18/ \x01(\tR\rextensionName\x12\x1f\n" +
+	"\vschema_name\x180 \x01(\tR\n" +
+	"schemaName\x12!\n" +
+	"\fschema_owner\x181 \x01(\tR\vschemaOwner\x12\x1b\n" +
+	"\ttype_name\x182 \x01(\tR\btypeName\x12\x1b\n" +
+	"\ttype_kind\x183 \x01(\tR\btypeKind\x12\x1f\n" +
+	"\venum_values\x184 \x03(\tR\n" +
+	"enumValues\x12\x1d\n" +
+	"\n" +
+	"enum_value\x185 \x01(\tR\tenumValue\x12$\n" +
+	"\x0enew_enum_value\x186 \x01(\tR\fnewEnumValue\x12\x1f\n" +
+	"\vdomain_name\x187 \x01(\tR\n" +
+	"domainName\x12\x1f\n" +
+	"\vdomain_type\x188 \x01(\tR\n" +
+	"domainType\x12%\n" +
+	"\x0edomain_default\x189 \x01(\tR\rdomainDefault\x12+\n" +
+	"\x11domain_constraint\x18: \x01(\tR\x10domainConstraint\x12\x1b\n" +
+	"\tfunc_name\x18; \x01(\tR\bfuncName\x12\x1b\n" +
+	"\tfunc_body\x18< \x01(\tR\bfuncBody\x12\x1b\n" +
+	"\tfunc_args\x18= \x03(\tR\bfuncArgs\x12!\n" +
+	"\ffunc_returns\x18> \x01(\tR\vfuncReturns\x12#\n" +
+	"\rfunc_language\x18? \x01(\tR\ffuncLanguage\x12\x1d\n" +
+	"\n" +
+	"func_owner\x18@ \x01(\tR\tfuncOwner\x12!\n" +
+	"\ftrigger_name\x18A \x01(\tR\vtriggerName\x12%\n" +
+	"\x0etrigger_timing\x18B \x01(\tR\rtriggerTiming\x12%\n" +
+	"\x0etrigger_events\x18C \x01(\tR\rtriggerEvents\x12(\n" +
+	"\x10trigger_for_each\x18D \x01(\tR\x0etriggerForEach\x12\x1f\n" +
+	"\vpolicy_name\x18E \x01(\tR\n" +
+	"policyName\x12\x1d\n" +
+	"\n" +
+	"policy_for\x18F \x01(\tR\tpolicyFor\x12\x1b\n" +
+	"\tpolicy_to\x18G \x01(\tR\bpolicyTo\x12!\n" +
+	"\fpolicy_using\x18H \x01(\tR\vpolicyUsing\x12!\n" +
+	"\fpolicy_check\x18I \x01(\tR\vpolicyCheck\x12\x1b\n" +
+	"\trule_name\x18J \x01(\tR\bruleName\x12\x1d\n" +
+	"\n" +
+	"rule_event\x18K \x01(\tR\truleEvent\x12\x1f\n" +
+	"\vrule_action\x18L \x01(\tR\n" +
+	"ruleAction\x12%\n" +
+	"\x0ecomment_target\x18M \x01(\tR\rcommentTarget\x12!\n" +
+	"\fcomment_text\x18N \x01(\tR\vcommentText\x12\x18\n" +
+	"\acascade\x18O \x01(\bR\acascade\"\xcb\n" +
 	"\n" +
 	"\rDocumentQuery\x12\x1c\n" +
 	"\toperation\x18\x01 \x01(\tR\toperation\x12\x1e\n" +

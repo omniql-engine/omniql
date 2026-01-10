@@ -223,6 +223,59 @@ func TranslatePostgreSQL(query *models.Query, tenantID string) (*pb.RelationalQu
 		DatabaseName: databaseName,
 		NewName:      newName,
 		AlterAction:  query.AlterAction,
+
+		// PostgreSQL DDL
+		SequenceName:      query.SequenceName,
+		SequenceStart:     query.SequenceStart,
+		SequenceIncrement: query.SequenceIncrement,
+		SequenceMin:       query.SequenceMin,
+		SequenceMax:       query.SequenceMax,
+		SequenceCache:     query.SequenceCache,
+		SequenceCycle:     query.SequenceCycle,
+		SequenceRestart:   query.SequenceRestart,
+
+		ExtensionName: query.ExtensionName,
+
+		SchemaName:  query.SchemaName,
+		SchemaOwner: query.SchemaOwner,
+
+		TypeName:     query.TypeName,
+		TypeKind:     query.TypeKind,
+		EnumValues:   query.EnumValues,
+		EnumValue:    query.EnumValue,
+		NewEnumValue: query.NewEnumValue,
+
+		DomainName:       query.DomainName,
+		DomainType:       query.DomainType,
+		DomainDefault:    query.DomainDefault,
+		DomainConstraint: query.DomainConstraint,
+
+		FuncName:     query.FuncName,
+		FuncBody:     query.FuncBody,
+		FuncArgs:     query.FuncArgs,
+		FuncReturns:  query.FuncReturns,
+		FuncLanguage: query.FuncLanguage,
+		FuncOwner:    query.FuncOwner,
+
+		TriggerName:    query.TriggerName,
+		TriggerTiming:  query.TriggerTiming,
+		TriggerEvents:  query.TriggerEvents,
+		TriggerForEach: query.TriggerForEach,
+
+		PolicyName:  query.PolicyName,
+		PolicyFor:   query.PolicyFor,
+		PolicyTo:    query.PolicyTo,
+		PolicyUsing: query.PolicyUsing,
+		PolicyCheck: query.PolicyCheck,
+
+		RuleName:   query.RuleName,
+		RuleEvent:  query.RuleEvent,
+		RuleAction: query.RuleAction,
+
+		CommentTarget: query.CommentTarget,
+		CommentText:   query.CommentText,
+
+		Cascade: query.Cascade,
 	}
 	
 	result.Sql = buildPostgreSQLString(result)
@@ -571,6 +624,74 @@ func buildPostgreSQLString(query *pb.RelationalQuery) string {
 		return sql
 	case "set_transaction":
 		sql, _ := pgbuilders.BuildSetTransactionSQL(query)
+		return sql
+
+	// PostgreSQL-specific DDL
+	case "create_sequence":
+		sql, _ := pgbuilders.BuildCreateSequenceSQL(query)
+		return sql
+	case "alter_sequence":
+		sql, _ := pgbuilders.BuildAlterSequenceSQL(query)
+		return sql
+	case "drop_sequence":
+		sql, _ := pgbuilders.BuildDropSequenceSQL(query)
+		return sql
+	case "create_extension":
+		sql, _ := pgbuilders.BuildCreateExtensionSQL(query)
+		return sql
+	case "drop_extension":
+		sql, _ := pgbuilders.BuildDropExtensionSQL(query)
+		return sql
+	case "create_schema":
+		sql, _ := pgbuilders.BuildCreateSchemaSQL(query)
+		return sql
+	case "drop_schema":
+		sql, _ := pgbuilders.BuildDropSchemaSQL(query)
+		return sql
+	case "create_type":
+		sql, _ := pgbuilders.BuildCreateTypeSQL(query)
+		return sql
+	case "alter_type":
+		sql, _ := pgbuilders.BuildAlterTypeSQL(query)
+		return sql
+	case "drop_type":
+		sql, _ := pgbuilders.BuildDropTypeSQL(query)
+		return sql
+	case "create_domain":
+		sql, _ := pgbuilders.BuildCreateDomainSQL(query)
+		return sql
+	case "drop_domain":
+		sql, _ := pgbuilders.BuildDropDomainSQL(query)
+		return sql
+	case "create_function":
+		sql, _ := pgbuilders.BuildCreateFunctionSQL(query)
+		return sql
+	case "alter_function":
+		sql, _ := pgbuilders.BuildAlterFunctionSQL(query)
+		return sql
+	case "drop_function":
+		sql, _ := pgbuilders.BuildDropFunctionSQL(query)
+		return sql
+	case "create_trigger":
+		sql, _ := pgbuilders.BuildCreateTriggerSQL(query)
+		return sql
+	case "drop_trigger":
+		sql, _ := pgbuilders.BuildDropTriggerSQL(query)
+		return sql
+	case "create_policy":
+		sql, _ := pgbuilders.BuildCreatePolicySQL(query)
+		return sql
+	case "drop_policy":
+		sql, _ := pgbuilders.BuildDropPolicySQL(query)
+		return sql
+	case "create_rule":
+		sql, _ := pgbuilders.BuildCreateRuleSQL(query)
+		return sql
+	case "drop_rule":
+		sql, _ := pgbuilders.BuildDropRuleSQL(query)
+		return sql
+	case "comment_on":
+		sql, _ := pgbuilders.BuildCommentOnSQL(query)
 		return sql
 	default:
 		return ""

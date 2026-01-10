@@ -32,6 +32,59 @@ type QueryNode struct {
 	ViewName     string         // Name identifier
 	ViewQuery    *QueryNode     // 100% TrueAST - parsed subquery
 	NewName      string         // Name identifier
+
+	// PostgreSQL DDL
+	SequenceName      string
+	SequenceStart     int64
+	SequenceIncrement int64
+	SequenceMin       int64
+	SequenceMax       int64
+	SequenceCache     int64
+	SequenceCycle     bool
+	SequenceRestart   int64
+
+	ExtensionName string
+
+	SchemaName  string
+	SchemaOwner string
+
+	TypeName     string
+	TypeKind     string   // ENUM, COMPOSITE
+	EnumValues   []string
+	EnumValue    string
+	NewEnumValue string
+
+	DomainName       string
+	DomainType       string
+	DomainDefault    string
+	DomainConstraint string
+
+	FuncName     string
+	FuncBody     string
+	FuncArgs     []string
+	FuncReturns  string
+	FuncLanguage string
+	FuncOwner    string
+
+	TriggerName    string
+	TriggerTiming  string
+	TriggerEvents  string
+	TriggerForEach string
+
+	PolicyName  string
+	PolicyFor   string
+	PolicyTo    string
+	PolicyUsing string
+	PolicyCheck string
+
+	RuleName   string
+	RuleEvent  string
+	RuleAction string
+
+	CommentTarget string
+	CommentText   string
+
+	Cascade bool
 	
 	// DQL
 	Joins           []JoinNode
