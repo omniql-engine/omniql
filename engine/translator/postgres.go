@@ -568,7 +568,8 @@ func buildPostgreSQLString(query *pb.RelationalQuery) string {
 		sql, _ := pgbuilders.BuildWindowFunctionSQL(query)
 		return sql
 	case "with":
-		return pgbuilders.BuildCTESQL(query)
+		sql, _ := pgbuilders.BuildCTESQL(query)
+		return sql
 	case "subquery", "exists":
 		sql, _ := pgbuilders.BuildSubquerySQL(query)
 		return sql

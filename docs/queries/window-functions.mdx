@@ -1,0 +1,152 @@
+---
+title: Window Functions
+description: "Advanced analytics with window functions"
+---
+
+Perform calculations across rows related to the current row.
+
+## Supported Functions
+
+| Function | Description |
+|----------|-------------|
+| `ROW NUMBER` | Sequential row numbers |
+| `RANK` | Rank with gaps for ties |
+| `DENSE RANK` | Rank without gaps |
+| `LAG` | Previous row value |
+| `LEAD` | Next row value |
+| `NTILE` | Divide into buckets |
+
+## Basic Syntax
+```sql
+:GET Entity WITH *, ROW NUMBER OVER (ORDER BY field) AS row_num
+:GET Entity WITH *, RANK OVER (PARTITION BY field ORDER BY field) AS rank
+```
+
+Use `*` to include all columns, or specify columns explicitly:
+```sql
+:GET Entity WITH id, name, ROW NUMBER OVER (ORDER BY field) AS row_num
+```
+
+## ROW NUMBER
+
+Assign sequential numbers to rows.
+```sql
+:GET User WITH *, ROW NUMBER OVER (ORDER BY created_at) AS row_num
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT *, ROW_NUMBER() OVER (ORDER BY created_at) AS row_num FROM users` |
+
+### With Partition
+```sql
+:GET User WITH *, ROW NUMBER OVER (PARTITION BY department ORDER BY salary DESC) AS row_num
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT *, ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary DESC) AS row_num FROM users` |
+
+## RANK
+
+Assign rank with gaps for ties.
+```sql
+:GET Product WITH *, RANK OVER (PARTITION BY category ORDER BY price DESC) AS rank
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT *, RANK() OVER (PARTITION BY category ORDER BY price DESC) AS rank FROM products` |
+
+## DENSE RANK
+
+Assign rank without gaps for ties.
+```sql
+:GET Product WITH *, DENSE RANK OVER (ORDER BY price DESC) AS dense_rank
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT *, DENSE_RANK() OVER (ORDER BY price DESC) AS dense_rank FROM products` |
+
+## Rank Comparison
+
+| Score | ROW NUMBER | RANK | DENSE RANK |
+|-------|------------|------|------------|
+| 100 | 1 | 1 | 1 |
+| 100 | 2 | 1 | 1 |
+| 90 | 3 | 3 | 2 |
+| 80 | 4 | 4 | 3 |
+
+## LAG
+
+Access previous row value.
+```sql
+:GET Order WITH *, LAG amount OVER (ORDER BY created_at) AS prev_amount
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT *, LAG(amount) OVER (ORDER BY created_at) AS prev_amount FROM orders` |
+
+## LEAD
+
+Access next row value.
+```sql
+:GET Order WITH *, LEAD amount OVER (ORDER BY created_at) AS next_amount
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT *, LEAD(amount) OVER (ORDER BY created_at) AS next_amount FROM orders` |
+
+## NTILE
+
+Divide rows into buckets.
+```sql
+:GET User WITH *, NTILE 4 OVER (ORDER BY salary) AS quartile
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT *, NTILE(4) OVER (ORDER BY salary) AS quartile FROM users` |
+
+Divides users into 4 salary quartiles.
+
+## Complete Example
+```sql
+:GET Order WITH 
+  id, 
+  user_id, 
+  amount,
+  ROW NUMBER OVER (PARTITION BY user_id ORDER BY created_at) AS order_num,
+  RANK OVER (ORDER BY amount DESC) AS amount_rank
+  WHERE created_at > "2024-01-01"
+  ORDER BY user_id, created_at
+```
+
+## MongoDB Note
+
+MongoDB has limited window function support (5.0+). Complex window functions may require aggregation pipelines.
+
+## Limitations
+
+Current implementation supports:
+- PARTITION BY
+- ORDER BY within OVER clause
+
+Not currently supported:
+- Frame clauses (`ROWS BETWEEN`)
+- `FIRST_VALUE`, `LAST_VALUE`
+- Aggregate functions as window functions (`SUM() OVER`, `AVG() OVER`)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Insert Data" icon="plus" href="/mutations/insert">
+    Create new records
+  </Card>
+  <Card title="Update Data" icon="pen" href="/mutations/update">
+    Modify existing records
+  </Card>
+</CardGroup>

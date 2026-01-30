@@ -115,20 +115,27 @@ func (p *Parser) parseJoin(op string) (*ast.QueryNode, error) {
 	}
 	join.Table = table2
 
-	// ON
-	if err := p.expect("ON"); err != nil {
-		return nil, err
-	}
 
-	// Parse ON condition using parseCondition for expression support (100% TrueAST)
-	cond, err := p.parseCondition()
-	if err != nil {
-		return nil, err
+	// ON - required for all JOINs except CROSS
+	if join.Type != "CROSS" {
+		if err := p.expect("ON"); err != nil {
+			return nil, err
+		}
+		// Parse ON condition using parseCondition for expression support (100% TrueAST)
+		cond, err := p.parseCondition()
+		if err != nil {
+			return nil, err
+		}
+		join.LeftExpr = cond.FieldExpr
+		join.RightExpr = cond.ValueExpr
 	}
-	join.LeftExpr = cond.FieldExpr
-	join.RightExpr = cond.ValueExpr
 
 	node.Joins = append(node.Joins, join)
+
+	// Optional clauses (WHERE, ORDER BY, LIMIT, etc.)
+	if err := p.parseClauses(node); err != nil {
+		return nil, err
+	}
 
 	return node, nil
 }
@@ -151,7 +158,7 @@ func (p *Parser) parseSetOperation(op string) (*ast.QueryNode, error) {
 		return nil, p.error("SET operation requires (query1) (query2) format")
 	}
 
-	leftQuery, err := p.Parse()
+	leftQuery, err := p.parseNested()
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +173,7 @@ func (p *Parser) parseSetOperation(op string) (*ast.QueryNode, error) {
 		return nil, p.error("SET operation requires second query in parentheses")
 	}
 
-	rightQuery, err := p.Parse()
+	rightQuery, err := p.parseNested()
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +314,7 @@ func (p *Parser) parseCTE() (*ast.QueryNode, error) {
 		return nil, err
 	}
 
-	cteQuery, err := p.Parse()
+	cteQuery, err := p.parseNested()
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +354,7 @@ func (p *Parser) parseSubquery() (*ast.QueryNode, error) {
 		return nil, err
 	}
 
-	subQuery, err := p.Parse()
+	subQuery, err := p.parseNested()
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +381,7 @@ func (p *Parser) parseExists() (*ast.QueryNode, error) {
 		return nil, err
 	}
 
-	existsQuery, err := p.Parse()
+	existsQuery, err := p.parseNested()
 	if err != nil {
 		return nil, err
 	}

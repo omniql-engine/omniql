@@ -156,6 +156,7 @@ func TranslateMongoDB(query *models.Query, tenantID string) (*pb.DocumentQuery, 
 	// SET OPERATIONS
 	if query.SetOperation != nil {
 		operation = mapping.OperationMap["MongoDB"][string(query.SetOperation.Type)]
+		collection = getMongoDBCollectionName(query.SetOperation.LeftQuery.Entity, query.SetOperation.LeftQuery.Operation)
 		
 		if query.SetOperation.Type == models.Intersect {
 			leftConditions := mapMongoDBConditions(query.SetOperation.LeftQuery.Conditions)
@@ -213,7 +214,7 @@ func TranslateMongoDB(query *models.Query, tenantID string) (*pb.DocumentQuery, 
 		ViewName:     viewName,
 		ViewQuery:    viewQuery,
 		DatabaseName: databaseName,
-		NewName:      query.NewName,
+		NewName:      getMongoDBCollectionName(query.NewName, query.Operation),
 	}
 
 	result.Query = buildMongoDBString(result)

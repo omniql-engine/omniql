@@ -1,0 +1,110 @@
+---
+title: Indexes
+description: "Optimize query performance with indexes"
+---
+
+Indexes speed up data retrieval at the cost of slower writes.
+
+## Basic Syntax
+```sql
+:CREATE INDEX Entity index_name:column
+:CREATE INDEX Entity index_name:column UNIQUE
+:DROP INDEX Entity index_name
+```
+
+## Create Index
+```sql
+:CREATE INDEX User idx_email:email
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE INDEX idx_email ON users (email)` |
+| MySQL | `CREATE INDEX idx_email ON users (email)` |
+
+## Unique Index
+```sql
+:CREATE INDEX User idx_email:email UNIQUE
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE UNIQUE INDEX idx_email ON users (email)` |
+| MySQL | `CREATE UNIQUE INDEX idx_email ON users (email)` |
+
+## Drop Index
+```sql
+:DROP INDEX User idx_email
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DROP INDEX IF EXISTS idx_email` |
+| MySQL | `DROP INDEX idx_email ON users` |
+
+## When to Use Indexes
+
+| Use Case | Recommendation |
+|----------|----------------|
+| Frequent WHERE clauses | Index the filtered column |
+| Unique constraints | Use UNIQUE index |
+| Foreign keys | Index the reference column |
+| Sorting | Index the ORDER BY column |
+
+## Index Best Practices
+
+**Do:**
+- Index columns used in WHERE clauses
+- Index columns used in JOIN conditions
+- Index columns used in ORDER BY
+- Use unique indexes for email, username, etc.
+
+**Don't:**
+- Over-index (slows down writes)
+- Index rarely queried columns
+- Index very small tables
+
+## Complete Examples
+
+### User Table
+```sql
+:CREATE INDEX User idx_email:email UNIQUE
+:CREATE INDEX User idx_status:status
+:CREATE INDEX User idx_created:created_at
+```
+
+### Order Table
+```sql
+:CREATE INDEX Order idx_user:user_id
+:CREATE INDEX Order idx_status:status
+:CREATE INDEX Order idx_created:created_at
+```
+
+## Database Support
+
+| Feature | PostgreSQL | MySQL | MongoDB |
+|---------|------------|-------|---------|
+| Single column index | ✅ | ✅ | Via driver |
+| UNIQUE modifier | ✅ | ✅ | Via driver |
+| DROP INDEX | ✅ | ✅ | Via driver |
+
+For MongoDB indexes, use native driver methods.
+
+## Limitations
+
+Current index implementation supports:
+- Single column indexes
+- UNIQUE constraint
+
+For advanced indexes (composite, partial, full-text, GIN), use native SQL.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Views" icon="eye" href="/schema/views">
+    Create virtual tables
+  </Card>
+  <Card title="Transactions" icon="arrows-rotate" href="/control/transactions">
+    Group operations safely
+  </Card>
+</CardGroup>

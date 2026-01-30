@@ -1,0 +1,88 @@
+{
+  "name": "OmniQL",
+  "theme": "mint",
+  "logo": {
+    "dark": "/logo/omni_white.png",
+    "light": "/logo/omni_black.png"
+  },
+  "favicon": "/logo/favicon.svg",
+  "colors": {
+    "primary": "#5e17eb",
+    "light": "#00FFAE",
+    "dark": "#5e17eb"
+  },
+  "styling": {
+    "codeblocks": {
+      "themes": {
+        "light": "github-light",
+        "dark": "dracula"
+      }
+    }
+  },
+  "modeToggle": {
+    "default": "dark",
+    "isHidden": false
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/omniql-engine/omniql"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Try in TenantsDB",
+      "href": "https://tenantsdb.com"
+    }
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": ["introduction", "prefix", "quickstart"]
+      },
+      {
+        "group": "Queries",
+        "pages": [
+          "queries/basics",
+          "queries/filtering",
+          "queries/sorting",
+          "queries/joins",
+          "queries/grouping",
+          "queries/window-functions",
+          "queries/advanced"
+        ]
+      },
+      {
+        "group": "Mutations",
+        "pages": ["mutations/insert", "mutations/update", "mutations/delete"]
+      },
+      {
+        "group": "Schema",
+        "pages": ["schema/tables", "schema/views", "schema/indexes", "schema/advanced"]
+      },
+      {
+        "group": "Control",
+        "pages": ["control/transactions", "control/permissions"]
+      },
+      {
+        "group": "Reference",
+        "pages": ["reference/operators", "reference/clauses", "reference/data-types"]
+      },
+      {
+        "group": "Databases",
+        "pages": ["databases/postgresql", "databases/mysql", "databases/mongodb", "databases/redis"]
+      },
+      {
+        "group": "Integration",
+        "pages": ["integration/go-package", "integration/native-queries"]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/omniql-engine/omniql"
+    }
+  }
+}

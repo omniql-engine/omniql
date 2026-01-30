@@ -1,0 +1,317 @@
+---
+title: PostgreSQL
+description: "Using OmniQL with PostgreSQL"
+---
+
+PostgreSQL is an advanced open-source relational database with full OmniQL support.
+
+## Quick Start
+```go
+import (
+    "database/sql"
+    
+    _ "github.com/lib/pq"
+    "github.com/omniql-engine/omniql"
+)
+
+// Your PostgreSQL connection
+db, _ := sql.Open("postgres", "postgres://user:pass@localhost/mydb?sslmode=disable")
+
+// Wrap with OmniQL
+client := oql.WrapSQL(db, "PostgreSQL")
+
+// Query with OmniQL syntax
+users, _ := client.Query(":GET User WHERE age > 21")
+```
+
+## Entity Naming
+
+OmniQL converts entity names to lowercase and pluralizes:
+
+| OmniQL | PostgreSQL |
+|--------|------------|
+| `User` | `users` |
+| `Order` | `orders` |
+| `OrderItem` | `orderitems` |
+
+## Type Mappings
+
+| OmniQL | PostgreSQL |
+|--------|------------|
+| `AUTO` | `SERIAL` |
+| `BIGAUTO` | `BIGSERIAL` |
+| `STRING` | `VARCHAR` |
+| `TEXT` | `TEXT` |
+| `CHAR` | `CHAR` |
+| `INT` | `INTEGER` |
+| `SMALLINT` | `SMALLINT` |
+| `BIGINT` | `BIGINT` |
+| `DECIMAL` | `DECIMAL` |
+| `NUMERIC` | `NUMERIC` |
+| `REAL` | `REAL` |
+| `FLOAT` | `DOUBLE PRECISION` |
+| `BOOLEAN` | `BOOLEAN` |
+| `TIMESTAMP` | `TIMESTAMP` |
+| `DATETIME` | `TIMESTAMP` |
+| `DATE` | `DATE` |
+| `TIME` | `TIME` |
+| `JSON` | `JSON` |
+| `JSONB` | `JSONB` |
+| `UUID` | `UUID` |
+| `BINARY` | `BYTEA` |
+| `BLOB` | `BYTEA` |
+
+## PostgreSQL-Specific Operators
+
+PostgreSQL supports case-insensitive pattern matching:
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `ILIKE` | Case-insensitive LIKE | `email ILIKE "%@gmail.com"` |
+| `NOT ILIKE` | Case-insensitive NOT LIKE | `name NOT ILIKE "admin%"` |
+```go
+// Case-insensitive search (PostgreSQL only)
+users, _ := client.Query(`:GET User WHERE email ILIKE "%@gmail.com"`)
+```
+
+> **Note:** MySQL and SQLite use `LIKE` with `LOWER()` instead. MongoDB uses regex with `i` flag.
+
+## Transactions
+
+PostgreSQL supports full transaction control:
+
+### Basic Transaction
+```go
+client.Query(":BEGIN")
+client.Query(`:CREATE User WITH name:"Alice", email:"alice@example.com"`)
+client.Query(`:UPDATE Account SET balance:balance - 100 WHERE user_id = 1`)
+client.Query(":COMMIT")
+```
+
+### Savepoints
+```go
+client.Query(":BEGIN")
+client.Query(`:UPDATE User SET status:"active" WHERE id = 1`)
+client.Query(":SAVEPOINT before_delete")
+client.Query(`:DELETE User WHERE id = 2`)
+client.Query(":ROLLBACK TO before_delete")  // Undo only the DELETE
+client.Query(":COMMIT")  // UPDATE is committed
+```
+
+### Isolation Levels
+```go
+client.Query(":SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+client.Query(":BEGIN")
+// ... queries ...
+client.Query(":COMMIT")
+```
+
+| OmniQL | PostgreSQL |
+|--------|------------|
+| `:BEGIN` | `BEGIN` |
+| `:COMMIT` | `COMMIT` |
+| `:ROLLBACK` | `ROLLBACK` |
+| `:SAVEPOINT name` | `SAVEPOINT name` |
+| `:ROLLBACK TO name` | `ROLLBACK TO SAVEPOINT name` |
+| `:RELEASE SAVEPOINT name` | `RELEASE SAVEPOINT name` |
+| `:SET TRANSACTION ISOLATION LEVEL X` | `SET TRANSACTION ISOLATION LEVEL X` |
+
+## Permissions (DCL)
+
+### Users
+```go
+// Create user
+client.Query(`:CREATE USER analyst WITH PASSWORD "secret123"`)
+
+// Alter user
+client.Query(`:ALTER USER analyst WITH PASSWORD "newpass456"`)
+
+// Drop user
+client.Query(`:DROP USER analyst`)
+```
+
+### Roles
+```go
+// Create role
+client.Query(`:CREATE ROLE readonly`)
+
+// Assign role to user
+client.Query(`:ASSIGN ROLE readonly TO analyst`)
+
+// Revoke role from user
+client.Query(`:REVOKE ROLE readonly FROM analyst`)
+
+// Drop role
+client.Query(`:DROP ROLE readonly`)
+```
+
+### Grants
+```go
+// Grant permissions
+client.Query(`:GRANT SELECT, INSERT ON User TO analyst`)
+
+// Revoke permissions
+client.Query(`:REVOKE INSERT ON User FROM analyst`)
+```
+
+| OmniQL | PostgreSQL |
+|--------|------------|
+| `:CREATE USER x WITH PASSWORD y` | `CREATE USER x WITH PASSWORD 'y'` |
+| `:DROP USER x` | `DROP USER x` |
+| `:CREATE ROLE x` | `CREATE ROLE x` |
+| `:DROP ROLE x` | `DROP ROLE x` |
+| `:ASSIGN ROLE x TO y` | `GRANT x TO y` |
+| `:REVOKE ROLE x FROM y` | `REVOKE x FROM y` |
+| `:GRANT perms ON table TO user` | `GRANT perms ON table TO user` |
+| `:REVOKE perms ON table FROM user` | `REVOKE perms ON table FROM user` |
+
+## PostgreSQL-Specific DDL
+
+The following features are PostgreSQL-only.
+
+### Sequences
+```go
+// Create
+client.Query(":CREATE SEQUENCE order_seq START 1000 INCREMENT 1")
+client.Query(":CREATE SEQUENCE order_seq START 1000 INCREMENT 1 MINVALUE 1 MAXVALUE 999999 CACHE 10 CYCLE")
+
+// Alter
+client.Query(":ALTER SEQUENCE order_seq RESTART 5000")
+client.Query(":ALTER SEQUENCE order_seq INCREMENT 5")
+
+// Drop
+client.Query(":DROP SEQUENCE order_seq")
+client.Query(":DROP SEQUENCE order_seq CASCADE")
+```
+
+### Custom Types (ENUM)
+```go
+// Create enum
+client.Query(":CREATE TYPE order_status AS ENUM pending, processing, shipped, delivered")
+
+// Add value
+client.Query(":ALTER TYPE order_status ADD VALUE cancelled")
+
+// Rename value
+client.Query(":ALTER TYPE order_status RENAME VALUE pending TO waiting")
+
+// Drop
+client.Query(":DROP TYPE order_status")
+client.Query(":DROP TYPE order_status CASCADE")
+```
+
+### Composite Types
+```go
+client.Query(":CREATE TYPE address WITH street:STRING, city:STRING, zip:STRING")
+```
+
+### Domains
+```go
+// Create domain with constraint
+client.Query(`:CREATE DOMAIN email AS STRING CHECK value LIKE '%@%'`)
+client.Query(":CREATE DOMAIN positive_int AS INT CHECK value > 0")
+
+// Drop
+client.Query(":DROP DOMAIN email")
+client.Query(":DROP DOMAIN email CASCADE")
+```
+
+### Schemas
+```go
+// Create
+client.Query(":CREATE SCHEMA analytics")
+client.Query(":CREATE SCHEMA reporting AUTHORIZATION admin_user")
+
+// Drop
+client.Query(":DROP SCHEMA analytics")
+client.Query(":DROP SCHEMA analytics CASCADE")
+```
+
+### Functions
+```go
+// Create
+client.Query(`:CREATE FUNCTION add_numbers ARGS x:INT, y:INT RETURNS INT LANGUAGE plpgsql BODY BEGIN RETURN x + y; END;`)
+
+// Alter
+client.Query(":ALTER FUNCTION add_numbers OWNER admin")
+
+// Drop
+client.Query(":DROP FUNCTION add_numbers")
+client.Query(":DROP FUNCTION add_numbers CASCADE")
+```
+
+### Triggers
+```go
+// Create
+client.Query(":CREATE TRIGGER audit_log ON User TIMING AFTER EVENTS INSERT OR UPDATE FUNCTION log_changes")
+
+// Drop
+client.Query(":DROP TRIGGER audit_log ON User")
+client.Query(":DROP TRIGGER audit_log ON User CASCADE")
+```
+
+### Policies (Row Level Security)
+```go
+// Create
+client.Query(`:CREATE POLICY user_isolation ON User FOR SELECT TO app_user USING user_id = current_user_id()`)
+client.Query(`:CREATE POLICY write_own ON User FOR INSERT WITH CHECK user_id = current_user_id()`)
+
+// Drop
+client.Query(":DROP POLICY user_isolation ON User")
+```
+
+### Rules
+```go
+// Create
+client.Query(":CREATE RULE protect_delete AS ON DELETE TO User DO NOTHING")
+
+// Drop
+client.Query(":DROP RULE protect_delete ON User")
+client.Query(":DROP RULE protect_delete ON User CASCADE")
+```
+
+### Extensions
+```go
+// Create
+client.Query(":CREATE EXTENSION uuid-ossp")
+client.Query(":CREATE EXTENSION postgis SCHEMA public")
+
+// Drop
+client.Query(":DROP EXTENSION uuid-ossp")
+client.Query(":DROP EXTENSION uuid-ossp CASCADE")
+```
+
+### Comments
+```go
+client.Query(`:COMMENT ON TABLE User IS 'Main user accounts'`)
+client.Query(`:COMMENT ON COLUMN User.email IS 'Primary contact email'`)
+```
+
+## Supported Operations
+
+| Category | Operations |
+|----------|------------|
+| **CRUD** | GET, CREATE, UPDATE, DELETE, UPSERT, BULK INSERT, REPLACE |
+| **DDL** | CREATE/ALTER/DROP TABLE, INDEX, VIEW, DATABASE |
+| **DDL (PG only)** | SEQUENCE, TYPE, DOMAIN, SCHEMA, FUNCTION, TRIGGER, POLICY, RULE, EXTENSION, COMMENT |
+| **DQL** | COUNT, SUM, AVG, MIN, MAX, JOINs, Window Functions, CTE, Subqueries |
+| **TCL** | BEGIN, COMMIT, ROLLBACK, SAVEPOINT, ROLLBACK TO, RELEASE SAVEPOINT, SET TRANSACTION |
+| **DCL** | GRANT, REVOKE, CREATE/DROP USER, CREATE/DROP ROLE, ASSIGN/REVOKE ROLE |
+| **Operators** | =, !=, >, <, >=, <=, IN, NOT IN, BETWEEN, LIKE, ILIKE, IS NULL, AND, OR |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="MySQL" icon="database" href="/databases/mysql">
+    MySQL specifics
+  </Card>
+  <Card title="JOINs" icon="link" href="/queries/joins">
+    JOIN operations
+  </Card>
+  <Card title="Window Functions" icon="chart-line" href="/queries/window-functions">
+    Advanced analytics
+  </Card>
+  <Card title="Data Types" icon="shapes" href="/reference/data-types">
+    Type mappings
+  </Card>
+</CardGroup>

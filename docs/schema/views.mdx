@@ -1,0 +1,120 @@
+---
+title: Views
+description: "Create virtual tables with views"
+---
+
+Views are virtual tables based on query results.
+
+## Basic Syntax
+```sql
+:CREATE VIEW ViewName AS GET Entity WHERE condition
+:ALTER VIEW ViewName AS GET Entity WHERE condition
+:DROP VIEW ViewName
+```
+
+## Create View
+```sql
+:CREATE VIEW ActiveUser AS GET User WHERE active = true
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE VIEW activeuser AS SELECT * FROM users WHERE active = true` |
+| MySQL | `CREATE VIEW activeuser AS SELECT * FROM users WHERE active = true` |
+
+## View with Columns
+```sql
+:CREATE VIEW UserSummary AS GET id, name, email FROM User WHERE active = true
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE VIEW usersummary AS SELECT id, name, email FROM users WHERE active = true` |
+
+## View with Aggregation
+```sql
+:CREATE VIEW OrderTotals AS GET Order WITH user_id, SUM(amount) AS total_spent GROUP BY user_id
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE VIEW ordertotals AS SELECT user_id, SUM(amount) AS total_spent FROM orders GROUP BY user_id` |
+
+<Note>
+Views with COUNT(*) require native SQL. Use SUM, AVG, MIN, MAX with OmniQL views.
+</Note>
+
+## Query a View
+
+Views are queried like regular tables.
+```sql
+:GET ActiveUser WHERE role = "admin"
+:GET OrderTotals WHERE total_spent > 1000
+```
+
+## Alter View
+
+Update an existing view definition.
+```sql
+:ALTER VIEW ActiveUser AS GET User WHERE active = true AND verified = true
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE OR REPLACE VIEW activeuser AS SELECT * FROM users WHERE active = true AND verified = true` |
+| MySQL | `CREATE OR REPLACE VIEW activeuser AS SELECT * FROM users WHERE active = true AND verified = true` |
+
+## Drop View
+```sql
+:DROP VIEW ActiveUser
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DROP VIEW IF EXISTS activeuser` |
+| MySQL | `DROP VIEW IF EXISTS activeuser` |
+
+## Complete Examples
+
+### Active Premium Users
+```sql
+:CREATE VIEW PremiumUser AS GET id, name, email, created_at FROM User WHERE role = "premium" AND active = true
+```
+
+### Low Stock Products
+```sql
+:CREATE VIEW LowStock AS GET id, name, sku, quantity FROM Product WHERE quantity < 10 AND active = true
+```
+
+### Revenue by Status
+```sql
+:CREATE VIEW RevenueByStatus AS GET Order WITH status, SUM(total) AS revenue GROUP BY status
+```
+
+## Limitations
+
+Current view implementation supports:
+- Simple SELECT queries with WHERE, ORDER BY, LIMIT
+- Column selection
+- Aggregations with SUM, AVG, MIN, MAX
+
+Not currently supported in OmniQL views:
+- COUNT(*) aggregations (use native SQL)
+- Views with JOINs (use native SQL)
+- Materialized views (PostgreSQL-specific, use native SQL)
+- CREATE OR REPLACE (use ALTER VIEW instead)
+
+## MongoDB Note
+
+MongoDB does not support traditional views. Use aggregation pipelines or read-only collections for similar functionality.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Indexes" icon="bolt" href="/schema/indexes">
+    Optimize query performance
+  </Card>
+  <Card title="Transactions" icon="arrows-rotate" href="/control/transactions">
+    Group operations safely
+  </Card>
+</CardGroup>

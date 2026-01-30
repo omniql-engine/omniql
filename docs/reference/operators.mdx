@@ -1,0 +1,219 @@
+---
+title: Operators
+description: "Complete operator reference"
+---
+
+All operators supported by OmniQL.
+
+## Comparison Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `=` | Equal | `WHERE age = 25` |
+| `!=` | Not equal | `WHERE status != "inactive"` |
+| `>` | Greater than | `WHERE age > 21` |
+| `>=` | Greater than or equal | `WHERE age >= 18` |
+| `<` | Less than | `WHERE price < 100` |
+| `<=` | Less than or equal | `WHERE quantity <= 10` |
+
+### Examples
+```sql
+:GET User WHERE age = 25
+:GET User WHERE age != 25
+:GET User WHERE age > 21
+:GET User WHERE age >= 18
+:GET User WHERE age < 65
+:GET User WHERE age <= 30
+```
+
+## Logical Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `AND` | Both conditions true | `WHERE age > 21 AND active = true` |
+| `OR` | Either condition true | `WHERE role = "admin" OR role = "mod"` |
+| `NOT` | Negate condition | `WHERE NOT status = "banned"` |
+
+### Examples
+```sql
+:GET User WHERE age > 21 AND status = "active"
+:GET User WHERE role = "admin" OR role = "moderator"
+:GET User WHERE NOT deleted = true
+:GET User WHERE (age > 21 AND status = "active") OR role = "admin"
+```
+
+### Precedence
+
+`NOT` > `AND` > `OR`
+
+Use parentheses to control order:
+```sql
+-- Without parentheses: AND evaluated first
+:GET User WHERE a = 1 OR b = 2 AND c = 3
+-- Equivalent to: a = 1 OR (b = 2 AND c = 3)
+
+-- With parentheses: OR evaluated first
+:GET User WHERE (a = 1 OR b = 2) AND c = 3
+```
+
+## Arithmetic Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `+` | Addition | `price + tax` |
+| `-` | Subtraction | `total - discount` |
+| `*` | Multiplication | `quantity * price` |
+| `/` | Division | `total / count` |
+| `%` | Modulo | `id % 2` |
+
+### Examples
+```sql
+:GET Product WITH name, price, price * 1.1 AS with_tax
+:UPDATE Product SET price = price * 0.9 WHERE category = "sale"
+:UPDATE Account SET balance = balance + 100 WHERE id = 1
+:GET User WHERE id % 2 = 0
+```
+
+## Range Operators
+
+### BETWEEN
+```sql
+:GET User WHERE age BETWEEN 18 AND 65
+:GET Order WHERE created_at BETWEEN "2024-01-01" AND "2024-12-31"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE age BETWEEN 18 AND 65` |
+| MySQL | `SELECT * FROM users WHERE age BETWEEN 18 AND 65` |
+| MongoDB | `db.users.find({ age: { $gte: 18, $lte: 65 } })` |
+
+### NOT BETWEEN
+```sql
+:GET Product WHERE price NOT BETWEEN 10 AND 50
+```
+
+## Set Operators
+
+### IN
+```sql
+:GET User WHERE role IN ("admin", "moderator", "editor")
+:GET Order WHERE status IN ("pending", "processing")
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE role IN ('admin', 'moderator', 'editor')` |
+| MySQL | `SELECT * FROM users WHERE role IN ('admin', 'moderator', 'editor')` |
+| MongoDB | `db.users.find({ role: { $in: ['admin', 'moderator', 'editor'] } })` |
+
+### NOT IN
+```sql
+:GET User WHERE status NOT IN ("banned", "suspended")
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE status NOT IN ('banned', 'suspended')` |
+| MongoDB | `db.users.find({ status: { $nin: ['banned', 'suspended'] } })` |
+
+## Pattern Operators
+
+### LIKE
+
+| Pattern | Meaning |
+|---------|---------|
+| `%` | Any sequence of characters |
+| `_` | Any single character |
+```sql
+:GET User WHERE name LIKE "John%"
+:GET User WHERE email LIKE "%@gmail.com"
+:GET User WHERE name LIKE "%smith%"
+:GET User WHERE code LIKE "A_123"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE name LIKE 'John%'` |
+| MySQL | `SELECT * FROM users WHERE name LIKE 'John%'` |
+| MongoDB | `db.users.find({ name: { $regex: '^John' } })` |
+
+### NOT LIKE
+```sql
+:GET User WHERE email NOT LIKE "%@test.com"
+```
+
+### ILIKE (Case Insensitive)
+```sql
+:GET User WHERE name ILIKE "john%"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE name ILIKE 'john%'` |
+| MySQL | `SELECT * FROM users WHERE LOWER(name) LIKE 'john%'` |
+
+Note: ILIKE is PostgreSQL-native. MySQL translates to LIKE with LOWER().
+
+## NULL Operators
+
+### IS NULL
+```sql
+:GET User WHERE deleted_at IS NULL
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE deleted_at IS NULL` |
+| MySQL | `SELECT * FROM users WHERE deleted_at IS NULL` |
+| MongoDB | `db.users.find({ deleted_at: null })` |
+
+### IS NOT NULL
+```sql
+:GET User WHERE phone IS NOT NULL
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE phone IS NOT NULL` |
+| MongoDB | `db.users.find({ phone: { $ne: null } })` |
+
+## Operator Summary by Database
+
+| Operator | PostgreSQL | MySQL | MongoDB |
+|----------|------------|-------|---------|
+| `=` | `=` | `=` | `$eq` |
+| `!=` | `!=` | `!=` | `$ne` |
+| `>` | `>` | `>` | `$gt` |
+| `>=` | `>=` | `>=` | `$gte` |
+| `<` | `<` | `<` | `$lt` |
+| `<=` | `<=` | `<=` | `$lte` |
+| `IN` | `IN` | `IN` | `$in` |
+| `NOT IN` | `NOT IN` | `NOT IN` | `$nin` |
+| `BETWEEN` | `BETWEEN` | `BETWEEN` | `$gte/$lte` |
+| `LIKE` | `LIKE` | `LIKE` | `$regex` |
+| `ILIKE` | `ILIKE` | `LIKE` | `$regex` with i flag |
+| `IS NULL` | `IS NULL` | `IS NULL` | `null` |
+| `IS NOT NULL` | `IS NOT NULL` | `IS NOT NULL` | `$ne: null` |
+| `AND` | `AND` | `AND` | implicit |
+| `OR` | `OR` | `OR` | `$or` |
+| `NOT` | `NOT` | `NOT` | `$not` |
+
+## Limitations
+
+Not currently supported in OmniQL (use native SQL):
+- JSON operators (`->`, `->>`, `@>`, `?`)
+- Array operators (`ANY`, `ALL`)
+- String concatenation (`||`)
+- EXISTS / NOT EXISTS subqueries
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Clauses" icon="list" href="/reference/clauses">
+    All clause reference
+  </Card>
+  <Card title="Data Types" icon="shapes" href="/reference/data-types">
+    Type reference
+  </Card>
+</CardGroup>

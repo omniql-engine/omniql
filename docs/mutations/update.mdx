@@ -1,0 +1,155 @@
+---
+title: Update
+description: "Modify existing records with UPDATE"
+---
+
+Modify existing records using the UPDATE operation.
+
+## Basic Syntax
+```sql
+:UPDATE Entity SET field:value WHERE condition
+```
+
+## Update Single Field
+```sql
+:UPDATE User SET status:"active" WHERE id = 1
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `UPDATE users SET status = 'active' WHERE id = 1` |
+| MySQL | `UPDATE users SET status = 'active' WHERE id = 1` |
+| MongoDB | `db.users.updateOne({ _id: 1 }, { $set: { status: 'active' } })` |
+| Redis | `HSET users:1 status "active"` |
+
+## Update Multiple Fields
+```sql
+:UPDATE User SET name:"John Updated", age:31, updated_at:"2024-01-15T10:30:00Z" WHERE id = 1
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `UPDATE users SET name = 'John Updated', age = 31, updated_at = '...' WHERE id = 1` |
+| MongoDB | `db.users.updateOne({ _id: 1 }, { $set: { name: 'John Updated', age: 31, ... } })` |
+
+## Update with Conditions
+```sql
+:UPDATE User SET verified:true WHERE email_confirmed = true AND created_at < "2024-01-01"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `UPDATE users SET verified = true WHERE email_confirmed = true AND created_at < '2024-01-01'` |
+| MongoDB | `db.users.updateMany({ email_confirmed: true, created_at: { $lt: '...' } }, { $set: { verified: true } })` |
+
+## Bulk Update
+
+Update multiple records matching condition.
+```sql
+:UPDATE Product SET on_sale:true WHERE category = "Electronics"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `UPDATE products SET on_sale = true WHERE category = 'Electronics'` |
+| MongoDB | `db.products.updateMany({ category: 'Electronics' }, { $set: { on_sale: true } })` |
+
+## Update with IN
+```sql
+:UPDATE User SET role:"premium" WHERE id IN (1, 2, 3, 4, 5)
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `UPDATE users SET role = 'premium' WHERE id IN (1, 2, 3, 4, 5)` |
+| MongoDB | `db.users.updateMany({ _id: { $in: [1, 2, 3, 4, 5] } }, { $set: { role: 'premium' } })` |
+
+## Set to NULL
+```sql
+:UPDATE User SET deleted_at:null WHERE id = 1
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `UPDATE users SET deleted_at = NULL WHERE id = 1` |
+| MongoDB | `db.users.updateOne({ _id: 1 }, { $set: { deleted_at: null } })` |
+
+## Increment Values
+```sql
+:UPDATE Product SET quantity = quantity + 10 WHERE id = 1
+:UPDATE User SET login_count = login_count + 1 WHERE id = 1
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `UPDATE products SET quantity = quantity + 10 WHERE id = 1` |
+| MongoDB | `db.products.updateOne({ _id: 1 }, { $inc: { quantity: 10 } })` |
+
+## Decrement Values
+```sql
+:UPDATE Product SET stock = stock - 1 WHERE id = 1
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `UPDATE products SET stock = stock - 1 WHERE id = 1` |
+| MongoDB | `db.products.updateOne({ _id: 1 }, { $inc: { stock: -1 } })` |
+
+## Using Functions
+```sql
+:UPDATE User SET name = UPPER(name) WHERE id = 1
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `UPDATE users SET name = UPPER(name) WHERE id = 1` |
+
+## Complete Examples
+
+### Soft Delete
+```sql
+:UPDATE User SET deleted_at:"2024-01-15T10:30:00Z", active:false WHERE id = 1
+```
+
+### Deactivate Inactive Users
+```sql
+:UPDATE User SET active:false WHERE last_login < "2023-01-01" AND active = true
+```
+
+### Update Order Status
+```sql
+:UPDATE Order SET 
+  status:"shipped",
+  shipped_at:"2024-01-15T10:30:00Z",
+  tracking_number:"1Z999AA10123456784"
+WHERE id = 1001
+```
+
+### Price Adjustment
+```sql
+:UPDATE Product SET price = price * 1.1 WHERE category = "Electronics"
+```
+
+Increases all electronics prices by 10%.
+
+## Warning
+
+Always include a WHERE clause to avoid updating all records accidentally.
+```sql
+-- DANGEROUS: Updates ALL users
+:UPDATE User SET status:"inactive"
+
+-- SAFE: Updates specific user
+:UPDATE User SET status:"inactive" WHERE id = 1
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Delete Data" icon="trash" href="/mutations/delete">
+    Remove records
+  </Card>
+  <Card title="Transactions" icon="arrows-rotate" href="/control/transactions">
+    Group operations
+  </Card>
+</CardGroup>

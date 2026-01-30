@@ -1,0 +1,329 @@
+---
+title: Data Types
+description: "Complete data type reference"
+---
+
+All data types supported by OmniQL and their database mappings.
+
+## Type Mappings
+
+| OmniQL | PostgreSQL | MySQL | MongoDB |
+|--------|------------|-------|---------|
+| `AUTO` | `SERIAL` | `INT AUTO_INCREMENT` | `ObjectId` |
+| `BIGAUTO` | `BIGSERIAL` | `BIGINT AUTO_INCREMENT` | `ObjectId` |
+| `INT` | `INTEGER` | `INT` | `Int32` |
+| `BIGINT` | `BIGINT` | `BIGINT` | `Int64` |
+| `SMALLINT` | `SMALLINT` | `SMALLINT` | `Int32` |
+| `DECIMAL` | `DECIMAL` | `DECIMAL` | `Decimal128` |
+| `NUMERIC` | `NUMERIC` | `DECIMAL` | `Decimal128` |
+| `FLOAT` | `DOUBLE PRECISION` | `DOUBLE` | `Double` |
+| `REAL` | `REAL` | `FLOAT` | `Double` |
+| `STRING` | `VARCHAR` | `VARCHAR(255)` | `String` |
+| `TEXT` | `TEXT` | `TEXT` | `String` |
+| `CHAR` | `CHAR` | `CHAR` | `String` |
+| `BOOLEAN` | `BOOLEAN` | `BOOLEAN` | `Boolean` |
+| `BOOL` | `BOOLEAN` | `BOOLEAN` | `Boolean` |
+| `TIMESTAMP` | `TIMESTAMP` | `TIMESTAMP` | `Date` |
+| `DATETIME` | `TIMESTAMP` | `DATETIME` | `Date` |
+| `DATE` | `DATE` | `DATE` | `Date` |
+| `TIME` | `TIME` | `TIME` | `String` |
+| `JSON` | `JSON` | `JSON` | `Object` |
+| `JSONB` | `JSONB` | `JSON` | `Object` |
+| `UUID` | `UUID` | `CHAR(36)` | `UUID` |
+| `BINARY` | `BYTEA` | `BLOB` | `BinData` |
+| `BLOB` | `BYTEA` | `BLOB` | `BinData` |
+
+## Numeric Types
+
+### AUTO
+
+Auto-incrementing primary key.
+```sql
+:CREATE TABLE User WITH id:AUTO, name:STRING
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE TABLE users (id SERIAL PRIMARY KEY, name VARCHAR)` |
+| MySQL | `CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))` |
+
+### BIGAUTO
+
+Auto-incrementing for large tables.
+```sql
+:CREATE TABLE Event WITH id:BIGAUTO, name:STRING
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `id BIGSERIAL PRIMARY KEY` |
+| MySQL | `id BIGINT AUTO_INCREMENT PRIMARY KEY` |
+
+### INT
+
+Standard integer (-2,147,483,648 to 2,147,483,647).
+```sql
+:CREATE TABLE Product WITH id:AUTO, quantity:INT
+```
+
+### BIGINT
+
+Large integer for big numbers.
+```sql
+:CREATE TABLE Analytics WITH id:AUTO, views:BIGINT
+```
+
+### SMALLINT
+
+Small integer (-32,768 to 32,767).
+```sql
+:CREATE TABLE Rating WITH id:AUTO, score:SMALLINT
+```
+
+### DECIMAL / NUMERIC
+
+Exact numeric with precision.
+```sql
+:CREATE TABLE Product WITH id:AUTO, price:DECIMAL
+:CREATE TABLE Product WITH id:AUTO, price:DECIMAL(10,2)
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `price DECIMAL(10,2)` |
+| MySQL | `price DECIMAL(10,2)` |
+
+### FLOAT
+
+Double-precision floating point.
+```sql
+:CREATE TABLE Sensor WITH id:AUTO, temperature:FLOAT
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `temperature DOUBLE PRECISION` |
+| MySQL | `temperature DOUBLE` |
+
+### REAL
+
+Single-precision floating point.
+```sql
+:CREATE TABLE Measurement WITH id:AUTO, value:REAL
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `value REAL` |
+| MySQL | `value FLOAT` |
+
+## String Types
+
+### STRING
+
+Variable-length string.
+```sql
+:CREATE TABLE User WITH id:AUTO, name:STRING
+:CREATE TABLE User WITH id:AUTO, name:STRING(100)
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `name VARCHAR` or `name VARCHAR(100)` |
+| MySQL | `name VARCHAR(255)` or `name VARCHAR(100)` |
+
+### TEXT
+
+Unlimited length text.
+```sql
+:CREATE TABLE Post WITH id:AUTO, content:TEXT
+```
+
+### CHAR
+
+Fixed-length string.
+```sql
+:CREATE TABLE Country WITH code:CHAR(2), name:STRING
+```
+
+## Boolean Types
+
+### BOOLEAN / BOOL
+
+True or false values.
+```sql
+:CREATE TABLE User WITH id:AUTO, active:BOOLEAN
+:CREATE TABLE User WITH id:AUTO, verified:BOOL
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `active BOOLEAN` |
+| MySQL | `active BOOLEAN` |
+| MongoDB | `Boolean` |
+
+### Boolean in Queries
+```sql
+:GET User WHERE active = true
+:GET User WHERE verified = false
+:UPDATE User SET active = true WHERE id = 1
+```
+
+## Date and Time Types
+
+### TIMESTAMP
+
+Date and time.
+```sql
+:CREATE TABLE User WITH id:AUTO, created_at:TIMESTAMP
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `created_at TIMESTAMP` |
+| MySQL | `created_at TIMESTAMP` |
+| MongoDB | `Date` |
+
+### DATETIME
+
+Date and time (MySQL uses DATETIME, PostgreSQL uses TIMESTAMP).
+```sql
+:CREATE TABLE Event WITH id:AUTO, event_time:DATETIME
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `event_time TIMESTAMP` |
+| MySQL | `event_time DATETIME` |
+
+### DATE
+
+Date only (no time).
+```sql
+:CREATE TABLE Event WITH id:AUTO, event_date:DATE
+```
+
+### TIME
+
+Time only (no date).
+```sql
+:CREATE TABLE Schedule WITH id:AUTO, start_time:TIME
+```
+
+### Date Literals in Queries
+```sql
+:GET Order WHERE created_at > "2024-01-01"
+:GET Order WHERE created_at BETWEEN "2024-01-01" AND "2024-12-31"
+```
+
+## JSON Types
+
+### JSON
+
+Standard JSON data.
+```sql
+:CREATE TABLE User WITH id:AUTO, metadata:JSON
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `metadata JSON` |
+| MySQL | `metadata JSON` |
+| MongoDB | `Object` (native) |
+
+### JSONB
+
+PostgreSQL optimized binary JSON.
+```sql
+:CREATE TABLE User WITH id:AUTO, metadata:JSONB
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `metadata JSONB` |
+| MySQL | `metadata JSON` |
+
+## UUID Type
+
+Universally unique identifier.
+```sql
+:CREATE TABLE User WITH id:UUID, name:STRING
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `id UUID` |
+| MySQL | `id CHAR(36)` |
+| MongoDB | `UUID` |
+
+### UUID in Queries
+```sql
+:GET User WHERE id = "550e8400-e29b-41d4-a716-446655440000"
+```
+
+## Binary Types
+
+### BINARY / BLOB
+
+Binary data (files, images).
+```sql
+:CREATE TABLE File WITH id:AUTO, content:BINARY
+:CREATE TABLE Image WITH id:AUTO, data:BLOB
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `content BYTEA` |
+| MySQL | `content BLOB` |
+| MongoDB | `BinData` |
+
+## Type with Constraints
+
+Use colons to add constraints after the type:
+```sql
+:CREATE TABLE User WITH
+  id:AUTO,
+  email:STRING:NOTNULL:UNIQUE,
+  name:STRING:NOTNULL,
+  role:STRING
+```
+
+| Constraint | Syntax | Effect |
+|------------|--------|--------|
+| Not Null | `:NOTNULL` | Column cannot be NULL |
+| Unique | `:UNIQUE` | Values must be unique |
+| Primary Key | `:PRIMARYKEY` | Column is primary key |
+
+See [Advanced Schema](/schema/advanced) for more on constraints.
+
+## Type with Size
+
+Specify size in parentheses:
+```sql
+:CREATE TABLE User WITH
+  id:AUTO,
+  name:STRING(100),
+  code:CHAR(2),
+  price:DECIMAL(10,2)
+```
+
+## Limitations
+
+Not currently supported:
+- DEFAULT values
+- CHECK constraints
+- Array types
+- Type casting
+
+For these features, use native SQL.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Tables" icon="table" href="/schema/tables">
+    Create tables with types
+  </Card>
+  <Card title="Operators" icon="code" href="/reference/operators">
+    Query operators
+  </Card>
+</CardGroup>

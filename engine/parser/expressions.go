@@ -155,7 +155,7 @@ func (p *Parser) parsePrimary() (*ast.ExpressionNode, error) {
 	if tok.Type == lexer.TOKEN_NUMBER {
 		p.advance()
 		return &ast.ExpressionNode{
-			Type:     "LITERAL",
+			Type:     "NUMBER",   // ← Changed from LITERAL
 			Value:    tok.Value,
 			Position: tok.Position,
 		}, nil
@@ -165,7 +165,7 @@ func (p *Parser) parsePrimary() (*ast.ExpressionNode, error) {
 	if tok.Type == lexer.TOKEN_STRING {
 		p.advance()
 		return &ast.ExpressionNode{
-			Type:     "LITERAL",
+			Type:     "STRING",   // ← Changed from LITERAL
 			Value:    tok.Value,
 			Position: tok.Position,
 		}, nil
@@ -175,7 +175,7 @@ func (p *Parser) parsePrimary() (*ast.ExpressionNode, error) {
 	if tok.Type == lexer.TOKEN_BOOLEAN {
 		p.advance()
 		return &ast.ExpressionNode{
-			Type:     "LITERAL",
+			Type:     "BOOLEAN",  // ← Changed from LITERAL
 			Value:    tok.Value,
 			Position: tok.Position,
 		}, nil

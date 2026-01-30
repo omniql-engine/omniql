@@ -1,0 +1,35 @@
+/* Existing logo rule */
+img.nav-logo {
+  height: 50px !important;
+  max-height: none !important;
+}
+
+/* Reduce spacing between sidebar groups */
+#navigation-items > div {
+  margin-top: 16px !important;
+}
+
+/* Reduce margin below group headers */
+.sidebar-group-header {
+  margin-bottom: 1px !important;
+}
+
+/* Reduce vertical padding on sidebar links */
+.sidebar-group a {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+/* CTA button - use light color (#00FFAE) in dark mode */
+html.dark #topbar-cta-button span.bg-primary-dark {
+  background-color: #00FFAE !important;
+}
+
+html.dark #topbar-cta-button span.text-white {
+  color: #000000 !important;
+}
+
+/* CTA button arrow - black in dark mode */
+html.dark #topbar-cta-button svg {
+  color: #000000 !important;
+}

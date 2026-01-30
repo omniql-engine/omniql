@@ -252,6 +252,13 @@ message KeyValueQuery {
     repeated KeyValuePair bulk_pairs = 4;
     string session_id = 5;
     string command_string = 6;
+    
+    // Filtering support
+    string entity = 7;                       // Entity name (e.g., "user")
+    repeated QueryCondition conditions = 8;  // WHERE conditions
+    int32 limit = 9;                         // LIMIT clause
+    int32 offset = 10;                       // OFFSET clause
+    repeated OrderByClause order_by = 11;    // ORDER BY clauses
 }
 
 message KeyValuePair {

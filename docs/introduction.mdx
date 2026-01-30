@@ -1,0 +1,119 @@
+---
+title: Introduction
+description: "The universal query compiler for Go"
+---
+
+# What is OmniQL?
+
+OmniQL is an open-source **Go library** that compiles a single query language into native PostgreSQL, MySQL, MongoDB, and Redis syntax.
+
+It wraps your existing database connection, allowing you to decouple your business logic from your database implementation.
+```go
+// Your database connection
+db, _ := sql.Open("postgres", "postgres://localhost/mydb")
+
+// Wrap it with OmniQL
+client := oql.WrapSQL(db, "PostgreSQL")
+
+// Query with universal syntax
+users, _ := client.Query(":GET User WHERE age > 21")
+```
+
+The same query works on any supported database:
+
+| Database   | Native Output                                      |
+|------------|----------------------------------------------------|
+| PostgreSQL | `SELECT * FROM "users" WHERE "age" > 21`           |
+| MySQL      | `SELECT * FROM \`users\` WHERE \`age\` > 21`       |
+| MongoDB    | `db.users.find({ "age": { "$gt": 21 } })`          |
+| Redis      | `HGETALL` with conditions filtered via Go helper   |
+
+## Why OmniQL?
+
+**Problem:** Switching databases (e.g., from Postgres to Mongo) usually requires rewriting your entire data access layer. Supporting multiple databases in one product requires maintaining multiple codebases.
+
+**Solution:** OmniQL acts as a compiler. You write your queries once in OmniQL syntax, and the engine instantly translates them into native commands for your target database.
+
+## Key Features
+
+- **Universal Syntax:** Learn one syntax (`:GET`, `:CREATE`, `:UPDATE`, `:DELETE`) instead of memorizing SQL dialects, BSON maps, and Redis commands.
+- **Plug and Play:** Wrap your existing database connection with `WrapSQL()`, `WrapMongo()`, or `WrapRedis()` and start querying immediately.
+- **Zero Overhead:** OmniQL translates queries instantly. No ORM magic, no reflection—just native query strings executed by your standard drivers.
+- **TrueAST Architecture:** Queries are parsed into a recursive Abstract Syntax Tree, enabling complex nested expressions and type safety.
+- **Polyglot Persistence:** Use relational, document, and key-value stores with the same query syntax.
+
+## Supported Databases
+
+| Database   | Wrapper        | Status        |
+|------------|----------------|---------------|
+| PostgreSQL | `WrapSQL()`    | Full support  |
+| MySQL      | `WrapSQL()`    | Full support  |
+| MongoDB    | `WrapMongo()`  | Full support  |
+| Redis      | `WrapRedis()`  | Full support  |
+
+## How It Works
+```
+┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+│  Your Query     │ ───▶ │    OmniQL       │ ───▶ │  Native Query   │
+│                 │      │                 │      │                 │
+│ :GET User       │      │ 1. Parse        │      │ SELECT * FROM   │
+│ WHERE age > 21  │      │ 2. Translate    │      │ "users" WHERE   │
+│                 │      │ 3. Execute      │      │ "age" > 21      │
+└─────────────────┘      └─────────────────┘      └─────────────────┘
+                                │
+                                ▼
+                         ┌─────────────────┐
+                         │  []map[string]  │
+                         │  any (results)  │
+                         └─────────────────┘
+```
+
+1. **Wrap:** Connect OmniQL to your existing database connection.
+2. **Query:** Pass an OmniQL string (starting with `:`) to `client.Query()`.
+3. **Compile:** The parser validates syntax and builds the AST.
+4. **Translate:** The translator generates native commands for your database.
+5. **Execute:** OmniQL runs the query and returns results as `[]map[string]any`.
+
+## Quick Example
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+    
+    _ "github.com/lib/pq"
+    "github.com/omniql-engine/omniql"
+)
+
+func main() {
+    // Your existing connection
+    db, _ := sql.Open("postgres", "postgres://localhost/mydb")
+    
+    // Wrap with OmniQL
+    client := oql.WrapSQL(db, "PostgreSQL")
+    
+    // CRUD operations
+    client.Query(`:CREATE User WITH name:"Alice", age:25`)
+    
+    users, _ := client.Query(":GET User WHERE age > 21")
+    for _, user := range users {
+        fmt.Println(user["name"], user["age"])
+    }
+    
+    client.Query(`:UPDATE User SET verified:true WHERE name = "Alice"`)
+    
+    client.Query(`:DELETE User WHERE active = false`)
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install the Go package and run your first query
+  </Card>
+  <Card title="Syntax Basics" icon="code" href="/prefix">
+    Learn the : prefix and syntax rules
+  </Card>
+</CardGroup>

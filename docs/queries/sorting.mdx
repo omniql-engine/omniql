@@ -1,0 +1,119 @@
+---
+title: Sorting
+description: "Order results with ORDER BY"
+---
+
+Order results using the ORDER BY clause.
+
+## Basic Syntax
+```sql
+:GET Entity ORDER BY field
+:GET Entity ORDER BY field ASC
+:GET Entity ORDER BY field DESC
+```
+
+## Ascending Order (Default)
+```sql
+:GET User ORDER BY name
+:GET User ORDER BY name ASC
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users ORDER BY name ASC` |
+| MySQL | `SELECT * FROM users ORDER BY name ASC` |
+| MongoDB | `db.users.find({}).sort({ name: 1 })` |
+
+## Descending Order
+```sql
+:GET User ORDER BY created_at DESC
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users ORDER BY created_at DESC` |
+| MongoDB | `db.users.find({}).sort({ created_at: -1 })` |
+
+## Multiple Columns
+```sql
+:GET User ORDER BY status ASC, created_at DESC
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users ORDER BY status ASC, created_at DESC` |
+| MongoDB | `db.users.find({}).sort({ status: 1, created_at: -1 })` |
+
+## Expressions in ORDER BY
+
+Sort by calculated values or function results.
+```sql
+:GET Product ORDER BY price * quantity DESC
+:GET User ORDER BY UPPER(name) ASC
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM products ORDER BY price * quantity DESC` |
+| MySQL | `SELECT * FROM products ORDER BY price * quantity DESC` |
+
+### Function in ORDER BY
+```sql
+:GET User ORDER BY LENGTH(name) DESC
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users ORDER BY LENGTH(name) DESC` |
+| MongoDB | `db.users.aggregate([{ $addFields: { nameLen: { $strLenCP: '$name' } } }, { $sort: { nameLen: -1 } }])` |
+
+## With WHERE Clause
+```sql
+:GET User WHERE active = true ORDER BY name ASC
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE active = true ORDER BY name ASC` |
+| MongoDB | `db.users.find({ active: true }).sort({ name: 1 })` |
+
+## With LIMIT
+```sql
+:GET User ORDER BY created_at DESC LIMIT 10
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users ORDER BY created_at DESC LIMIT 10` |
+| MongoDB | `db.users.find({}).sort({ created_at: -1 }).limit(10)` |
+
+## Pagination Pattern
+```sql
+:GET User ORDER BY id ASC LIMIT 20 OFFSET 40
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users ORDER BY id ASC LIMIT 20 OFFSET 40` |
+| MongoDB | `db.users.find({}).sort({ id: 1 }).skip(40).limit(20)` |
+
+## Complete Example
+```sql
+:GET id, name, email, created_at FROM User 
+  WHERE status = "active" 
+  AND role IN ("user", "premium")
+  ORDER BY created_at DESC, name ASC 
+  LIMIT 25 
+  OFFSET 50
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Joins" icon="link" href="/queries/joins">
+    Combine multiple tables
+  </Card>
+  <Card title="Grouping" icon="layer-group" href="/queries/grouping">
+    Aggregate with GROUP BY
+  </Card>
+</CardGroup>

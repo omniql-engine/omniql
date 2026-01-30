@@ -1,0 +1,151 @@
+---
+title: Delete
+description: "Remove records with DELETE"
+---
+
+Remove records using the DELETE operation.
+
+## Basic Syntax
+```sql
+:DELETE Entity WHERE condition
+:DELETE FROM Entity WHERE condition
+```
+
+Both forms are valid. The `FROM` keyword is optional.
+
+## Delete Single Record
+```sql
+:DELETE User WHERE id = 1
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DELETE FROM users WHERE id = 1` |
+| MySQL | `DELETE FROM users WHERE id = 1` |
+| MongoDB | `db.users.deleteOne({ _id: 1 })` |
+| Redis | `DEL users:1` |
+
+## Delete with Conditions
+```sql
+:DELETE User WHERE status = "inactive" AND last_login < "2023-01-01"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DELETE FROM users WHERE status = 'inactive' AND last_login < '2023-01-01'` |
+| MongoDB | `db.users.deleteMany({ status: 'inactive', last_login: { $lt: '2023-01-01' } })` |
+
+## Delete with IN
+```sql
+:DELETE User WHERE id IN (1, 2, 3, 4, 5)
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DELETE FROM users WHERE id IN (1, 2, 3, 4, 5)` |
+| MongoDB | `db.users.deleteMany({ _id: { $in: [1, 2, 3, 4, 5] } })` |
+
+## Delete with LIKE
+```sql
+:DELETE Log WHERE message LIKE "%debug%"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DELETE FROM logs WHERE message LIKE '%debug%'` |
+| MongoDB | `db.logs.deleteMany({ message: { $regex: 'debug' } })` |
+
+## Delete with NULL Check
+```sql
+:DELETE User WHERE email IS NULL
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DELETE FROM users WHERE email IS NULL` |
+| MongoDB | `db.users.deleteMany({ email: null })` |
+
+## Delete with BETWEEN
+```sql
+:DELETE Log WHERE created_at BETWEEN "2023-01-01" AND "2023-06-30"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DELETE FROM logs WHERE created_at BETWEEN '2023-01-01' AND '2023-06-30'` |
+
+## Complete Examples
+
+### Remove Expired Sessions
+```sql
+:DELETE Session WHERE expires_at < "2024-01-15T00:00:00Z"
+```
+
+### Clean Up Old Logs
+```sql
+:DELETE Log WHERE created_at < "2023-01-01" AND level = "debug"
+```
+
+### Remove Unverified Users
+```sql
+:DELETE User WHERE verified = false AND created_at < "2023-12-01"
+```
+
+### Cancel Abandoned Orders
+```sql
+:DELETE Order WHERE status = "pending" AND created_at < "2024-01-01"
+```
+
+### Remove Test Data
+```sql
+:DELETE User WHERE email LIKE "%@test.com"
+```
+
+## Soft Delete Alternative
+
+Instead of deleting, consider soft delete:
+```sql
+-- Soft delete (recommended)
+:UPDATE User SET deleted_at:"2024-01-15T10:30:00Z", active:false WHERE id = 1
+
+-- Hard delete (permanent)
+:DELETE User WHERE id = 1
+```
+
+## Truncate
+
+Remove all records from a table. Both syntaxes work:
+```sql
+:TRUNCATE Log
+:TRUNCATE TABLE Log
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `TRUNCATE TABLE logs` |
+| MySQL | `TRUNCATE TABLE logs` |
+| MongoDB | `db.logs.deleteMany({})` |
+
+**Warning:** TRUNCATE removes ALL records and cannot be rolled back in most databases.
+
+## Warning
+
+Always include a WHERE clause to avoid deleting all records accidentally.
+```sql
+-- DANGEROUS: Deletes ALL users
+:DELETE User
+
+-- SAFE: Deletes specific user
+:DELETE User WHERE id = 1
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create Tables" icon="table" href="/schema/tables">
+    Define your schema
+  </Card>
+  <Card title="Transactions" icon="arrows-rotate" href="/control/transactions">
+    Group operations safely
+  </Card>
+</CardGroup>

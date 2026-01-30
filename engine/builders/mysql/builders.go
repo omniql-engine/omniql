@@ -8,6 +8,9 @@ import (
 	pb "github.com/omniql-engine/omniql/utilities/proto"
 )
 
+// DefaultMySQLUserHost is the default host for MySQL user operations.
+const DefaultMySQLUserHost = "localhost"
+
 // ============================================================================
 // NIL-SAFE HELPERS (TrueAST)
 // ============================================================================
@@ -565,7 +568,7 @@ func BuildGrantSQL(query *pb.RelationalQuery, isRole bool) (string, error) {
 	if isRole {
 		return fmt.Sprintf("GRANT %s ON %s.* TO %s", strings.Join(privileges, ", "), query.Table, query.PermissionTarget), nil
 	}
-	return fmt.Sprintf("GRANT %s ON %s.* TO '%s'@'localhost'", strings.Join(privileges, ", "), query.Table, query.PermissionTarget), nil
+	return fmt.Sprintf("GRANT %s ON %s.* TO '%s'@'%s'", strings.Join(privileges, ", "), query.Table, query.PermissionTarget, DefaultMySQLUserHost), nil
 }
 
 func BuildRevokeSQL(query *pb.RelationalQuery, isRole bool) (string, error) {
@@ -580,7 +583,7 @@ func BuildRevokeSQL(query *pb.RelationalQuery, isRole bool) (string, error) {
 	if isRole {
 		return fmt.Sprintf("REVOKE %s ON %s.* FROM %s", strings.Join(privileges, ", "), query.Table, query.PermissionTarget), nil
 	}
-	return fmt.Sprintf("REVOKE %s ON %s.* FROM '%s'@'localhost'", strings.Join(privileges, ", "), query.Table, query.PermissionTarget), nil
+	return fmt.Sprintf("REVOKE %s ON %s.* FROM '%s'@'%s'", strings.Join(privileges, ", "), query.Table, query.PermissionTarget, DefaultMySQLUserHost), nil
 }
 
 func BuildCreateRoleSQL(query *pb.RelationalQuery) (string, error) {
@@ -604,7 +607,7 @@ func BuildAssignRoleSQL(query *pb.RelationalQuery) (string, error) {
 	if query.UserName == "" {
 		return "", fmt.Errorf("no user name specified for ASSIGN_ROLE")
 	}
-	return fmt.Sprintf("GRANT '%s' TO '%s'@'localhost'", query.RoleName, query.UserName), nil
+	return fmt.Sprintf("GRANT '%s' TO '%s'@'%s'", query.RoleName, query.UserName, DefaultMySQLUserHost), nil
 }
 
 func BuildRevokeRoleSQL(query *pb.RelationalQuery) (string, error) {
@@ -614,7 +617,7 @@ func BuildRevokeRoleSQL(query *pb.RelationalQuery) (string, error) {
 	if query.UserName == "" {
 		return "", fmt.Errorf("no user name specified for REVOKE_ROLE")
 	}
-	return fmt.Sprintf("REVOKE '%s' FROM '%s'@'localhost'", query.RoleName, query.UserName), nil
+	return fmt.Sprintf("REVOKE '%s' FROM '%s'@'%s'", query.RoleName, query.UserName, DefaultMySQLUserHost), nil
 }
 
 func BuildCreateUserSQL(query *pb.RelationalQuery) (string, error) {
@@ -624,14 +627,14 @@ func BuildCreateUserSQL(query *pb.RelationalQuery) (string, error) {
 	if query.Password == "" {
 		return "", fmt.Errorf("no password specified for CREATE_USER")
 	}
-	return fmt.Sprintf("CREATE USER IF NOT EXISTS '%s'@'localhost' IDENTIFIED BY '%s'", query.UserName, query.Password), nil
+	return fmt.Sprintf("CREATE USER IF NOT EXISTS '%s'@'%s' IDENTIFIED BY '%s'", query.UserName, DefaultMySQLUserHost, query.Password), nil
 }
 
 func BuildDropUserSQL(query *pb.RelationalQuery) (string, error) {
 	if query.UserName == "" {
 		return "", fmt.Errorf("no username specified for DROP_USER")
 	}
-	return fmt.Sprintf("DROP USER IF EXISTS '%s'@'localhost'", query.UserName), nil
+	return fmt.Sprintf("DROP USER IF EXISTS '%s'@'%s'", query.UserName, DefaultMySQLUserHost), nil
 }
 
 func BuildAlterUserSQL(query *pb.RelationalQuery) (string, error) {
@@ -641,11 +644,11 @@ func BuildAlterUserSQL(query *pb.RelationalQuery) (string, error) {
 	if query.Password == "" {
 		return "", fmt.Errorf("no password specified for ALTER_USER")
 	}
-	return fmt.Sprintf("ALTER USER '%s'@'localhost' IDENTIFIED BY '%s'", query.UserName, query.Password), nil
+	return fmt.Sprintf("ALTER USER '%s'@'%s' IDENTIFIED BY '%s'", query.UserName, DefaultMySQLUserHost, query.Password), nil
 }
 
 func BuildGrantRoleToUserSQL(roleName, userName string) string {
-	return fmt.Sprintf("GRANT '%s' TO '%s'@'localhost'", roleName, userName)
+	return fmt.Sprintf("GRANT '%s' TO '%s'@'%s'", roleName, userName, DefaultMySQLUserHost)
 }
 
 func TranslatePermissions(permissions []string) []string {
@@ -680,7 +683,7 @@ func BuildCreateTableSQL(query *pb.RelationalQuery, typeMap map[string]map[strin
 
 	var columns []string
 	for _, field := range query.Fields {
-		columnDef := TranslateColumn(field.NameExpr.Value, field.ValueExpr.Value, typeMap)
+		columnDef := TranslateColumn(field.NameExpr.Value, field.ValueExpr.Value, field.Constraints, typeMap)
 		columns = append(columns, columnDef)
 	}
 
@@ -705,7 +708,7 @@ func BuildAlterTableSQL(query *pb.RelationalQuery, typeMap map[string]map[string
 		if columnValue == "" {
 			return "", fmt.Errorf("ADD_COLUMN requires column type")
 		}
-		columnDef := TranslateColumn(columnName, columnValue, typeMap)
+		columnDef := TranslateColumn(columnName, columnValue, field.Constraints, typeMap)
 		return fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN %s", query.Table, columnDef), nil
 	case "DROP_COLUMN":
 		return fmt.Sprintf("ALTER TABLE `%s` DROP COLUMN %s", query.Table, columnName), nil
@@ -718,7 +721,7 @@ func BuildAlterTableSQL(query *pb.RelationalQuery, typeMap map[string]map[string
 		if columnValue == "" {
 			return "", fmt.Errorf("MODIFY_COLUMN requires new column type")
 		}
-		columnDef := TranslateColumn(columnName, columnValue, typeMap)
+		columnDef := TranslateColumn(columnName, columnValue, field.Constraints, typeMap)
 		return fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN %s", query.Table, columnDef), nil
 	default:
 		return "", fmt.Errorf("unknown ALTER operation: %s", query.AlterAction)
@@ -733,7 +736,22 @@ func BuildCreateIndexSQL(query *pb.RelationalQuery) (string, error) {
 	if len(query.Fields) == 0 {
 		return "", fmt.Errorf("no index details specified")
 	}
-	return fmt.Sprintf("CREATE INDEX %s ON `%s` (%s)", query.Fields[0].NameExpr.Value, query.Table, query.Fields[0].ValueExpr.Value), nil
+
+	indexName := query.Fields[0].NameExpr.Value
+	columnName := query.Fields[0].ValueExpr.Value
+
+	// Check for UNIQUE constraint
+	indexType := "INDEX"
+	if len(query.Fields[0].Constraints) > 0 {
+		for _, constraint := range query.Fields[0].Constraints {
+			if strings.ToUpper(constraint) == "UNIQUE" {
+				indexType = "UNIQUE INDEX"
+				break
+			}
+		}
+	}
+
+	return fmt.Sprintf("CREATE %s %s ON `%s` (%s)", indexType, indexName, query.Table, columnName), nil
 }
 
 func BuildDropIndexSQL(query *pb.RelationalQuery) (string, error) {
@@ -824,7 +842,7 @@ func BuildDropDatabaseSQL(query *pb.RelationalQuery) (string, error) {
 	return fmt.Sprintf("DROP DATABASE IF EXISTS %s", query.DatabaseName), nil
 }
 
-func TranslateColumn(columnName, columnType string, typeMap map[string]map[string]string) string {
+func TranslateColumn(columnName, columnType string, constraints []string, typeMap map[string]map[string]string) string {
 	baseType := columnType
 	params := ""
 
@@ -840,10 +858,35 @@ func TranslateColumn(columnName, columnType string, typeMap map[string]map[strin
 		mysqlType = baseType
 	}
 
-	if strings.Contains(mysqlType, "AUTO_INCREMENT") {
-		return fmt.Sprintf("%s %s%s PRIMARY KEY", columnName, mysqlType, params)
+	// Don't append params if mysqlType already has size
+	var columnDef string
+	// Don't append params if mysqlType already has size
+	if strings.Contains(mysqlType, "(") {
+		columnDef = fmt.Sprintf("%s %s", columnName, mysqlType)
+	} else {
+		columnDef = fmt.Sprintf("%s %s%s", columnName, mysqlType, params)
 	}
-	return fmt.Sprintf("%s %s%s", columnName, mysqlType, params)
+
+	// Handle AUTO_INCREMENT PRIMARY KEY
+	if strings.Contains(mysqlType, "AUTO_INCREMENT") {
+		columnDef += " PRIMARY KEY"
+	}
+
+	// Handle constraints from AST
+	for _, constraint := range constraints {
+		switch strings.ToUpper(constraint) {
+		case "UNIQUE":
+			columnDef += " UNIQUE"
+		case "NOT_NULL", "NOTNULL":
+			columnDef += " NOT NULL"
+		case "PRIMARY_KEY", "PRIMARYKEY":
+			if !strings.Contains(columnDef, "PRIMARY KEY") {
+				columnDef += " PRIMARY KEY"
+			}
+		}
+	}
+
+	return columnDef
 }
 
 // ============================================================================
@@ -867,8 +910,15 @@ func BuildJoinSQL(query *pb.RelationalQuery) (string, []interface{}) {
 		joinType := strings.ToUpper(strings.Replace(join.JoinType, "_", " ", -1))
 		if joinType == "CROSS" {
 			sql += fmt.Sprintf(" CROSS JOIN %s", join.Table)
+		} else if joinType == "FULL" {
+			// MySQL doesn't support FULL JOIN - emulate with LEFT JOIN UNION RIGHT JOIN
+			leftJoin := fmt.Sprintf("SELECT * FROM %s LEFT JOIN %s ON %s.%s = %s.%s",
+				query.Table, join.Table, query.Table, join.LeftExpr.Value, join.Table, join.RightExpr.Value)
+			rightJoin := fmt.Sprintf("SELECT * FROM %s RIGHT JOIN %s ON %s.%s = %s.%s WHERE %s.%s IS NULL",
+				query.Table, join.Table, query.Table, join.LeftExpr.Value, join.Table, join.RightExpr.Value, query.Table, join.LeftExpr.Value)
+			sql = fmt.Sprintf("(%s) UNION (%s)", leftJoin, rightJoin)
 		} else {
-			sql += fmt.Sprintf(" %s JOIN %s ON %s = %s", joinType, join.Table, join.LeftExpr.Value, join.RightExpr.Value)
+			sql += fmt.Sprintf(" %s JOIN %s ON %s.%s = %s.%s", joinType, join.Table, query.Table, join.LeftExpr.Value, join.Table, join.RightExpr.Value)
 		}
 	}
 	
@@ -910,6 +960,13 @@ func BuildAggregateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 				selectClause = "SELECT COUNT(*)"
 			} else {
 				selectClause = fmt.Sprintf("SELECT %s(*)", aggFunc)
+			}
+			if len(query.GroupBy) > 0 {
+				var groupByStrs []string
+				for _, gb := range query.GroupBy {
+					groupByStrs = append(groupByStrs, gb.Value)
+				}
+				selectClause += ", " + strings.Join(groupByStrs, ", ")
 			}
 		} else {
 			if query.Distinct {
@@ -1172,4 +1229,57 @@ func TranslateIsolationLevel(level string) string {
 	default:
 		return "REPEATABLE READ"
 	}
+}
+
+// ============================================================================
+// CTE OPERATIONS - SQL BUILDERS
+// ============================================================================
+
+func BuildCTESQL(query *pb.RelationalQuery) (string, []interface{}) {
+	if query.Cte == nil {
+		return "", nil
+	}
+	cteSQL, params := BuildSelectSQL(query.Cte.CteQuery)
+	return fmt.Sprintf("WITH %s AS (%s) SELECT * FROM %s", query.Cte.CteName, cteSQL, query.Cte.CteName), params
+}
+
+// ============================================================================
+// SUBQUERY OPERATIONS - SQL BUILDERS
+// ============================================================================
+
+func BuildSubquerySQL(query *pb.RelationalQuery) (string, []interface{}) {
+	if query.Subquery == nil {
+		return "", nil
+	}
+
+	subqueryType := strings.ToUpper(query.Subquery.SubqueryType)
+	subquerySQL, subArgs := BuildSelectSQL(query.Subquery.Subquery)
+
+	// EXISTS is a standalone existence check
+	if subqueryType == "EXISTS" {
+		return fmt.Sprintf("SELECT EXISTS(%s)", subquerySQL), subArgs
+	}
+
+	// IN subquery requires outer table
+	if query.Table == "" {
+		return "", nil
+	}
+
+	sql := fmt.Sprintf("SELECT * FROM `%s` WHERE ", query.Table)
+	var args []interface{}
+
+	if len(query.Conditions) > 0 {
+		whereParts := []string{}
+		for _, cond := range query.Conditions {
+			whereParts = append(whereParts, fmt.Sprintf("%s %s ?", cond.FieldExpr.Value, cond.Operator))
+			args = append(args, cond.ValueExpr.Value)
+		}
+		sql += strings.Join(whereParts, " AND ") + " AND "
+	}
+
+	subField := query.Subquery.FieldExpr.Value
+    sql += fmt.Sprintf("%s IN (%s)", subField, subquerySQL)
+	args = append(args, subArgs...)
+
+	return sql, args
 }

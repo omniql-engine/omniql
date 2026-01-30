@@ -1,0 +1,147 @@
+---
+title: Tables
+description: "Create and manage database tables"
+---
+
+Create and manage tables using DDL operations.
+
+## Create Table
+```sql
+:CREATE TABLE Entity WITH column:TYPE, column:TYPE:CONSTRAINT
+```
+
+## Basic Table
+```sql
+:CREATE TABLE User WITH id:AUTO, name:STRING, email:STRING
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE TABLE users (id SERIAL, name VARCHAR, email VARCHAR)` |
+| MySQL | `CREATE TABLE users (id INT AUTO_INCREMENT, name VARCHAR(255), email VARCHAR(255))` |
+| MongoDB | Creates collection on first insert |
+
+## Data Types
+
+| OmniQL Type | PostgreSQL | MySQL | MongoDB |
+|-------------|------------|-------|---------|
+| `AUTO` | `SERIAL` | `INT AUTO_INCREMENT` | `ObjectId` |
+| `BIGAUTO` | `BIGSERIAL` | `BIGINT AUTO_INCREMENT` | `ObjectId` |
+| `INT` | `INTEGER` | `INT` | `Int32` |
+| `BIGINT` | `BIGINT` | `BIGINT` | `Int64` |
+| `SMALLINT` | `SMALLINT` | `SMALLINT` | `Int32` |
+| `STRING` | `VARCHAR` | `VARCHAR(255)` | `String` |
+| `TEXT` | `TEXT` | `TEXT` | `String` |
+| `CHAR` | `CHAR` | `CHAR` | `String` |
+| `BOOLEAN` | `BOOLEAN` | `BOOLEAN` | `Boolean` |
+| `BOOL` | `BOOLEAN` | `BOOLEAN` | `Boolean` |
+| `TIMESTAMP` | `TIMESTAMP` | `TIMESTAMP` | `Date` |
+| `DATETIME` | `TIMESTAMP` | `DATETIME` | `Date` |
+| `DATE` | `DATE` | `DATE` | `Date` |
+| `TIME` | `TIME` | `TIME` | `String` |
+| `JSON` | `JSON` | `JSON` | `Object` |
+| `JSONB` | `JSONB` | `JSON` | `Object` |
+| `UUID` | `UUID` | `CHAR(36)` | `UUID` |
+| `DECIMAL` | `DECIMAL` | `DECIMAL` | `Decimal128` |
+| `NUMERIC` | `NUMERIC` | `DECIMAL` | `Decimal128` |
+| `FLOAT` | `DOUBLE PRECISION` | `DOUBLE` | `Double` |
+| `REAL` | `REAL` | `FLOAT` | `Double` |
+| `BINARY` | `BYTEA` | `BLOB` | `BinData` |
+| `BLOB` | `BYTEA` | `BLOB` | `BinData` |
+
+## With Size
+```sql
+:CREATE TABLE User WITH id:AUTO, name:STRING(100), description:TEXT
+```
+
+## With Constraints
+
+Constraints are added after the type using colons:
+```sql
+:CREATE TABLE User WITH id:AUTO, name:STRING:NOTNULL, email:STRING:UNIQUE
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE TABLE users (id SERIAL, name VARCHAR NOT NULL, email VARCHAR UNIQUE)` |
+
+### Multiple Constraints
+```sql
+:CREATE TABLE User WITH id:AUTO, email:STRING:NOTNULL:UNIQUE
+```
+
+## Complete Example
+```sql
+:CREATE TABLE User WITH
+  id:AUTO,
+  email:STRING:NOTNULL:UNIQUE,
+  name:STRING:NOTNULL,
+  active:BOOLEAN,
+  created_at:TIMESTAMP
+```
+
+## Drop Table
+```sql
+:DROP TABLE User
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DROP TABLE users` |
+| MySQL | `DROP TABLE users` |
+| MongoDB | `db.users.drop()` |
+
+## Alter Table
+
+### Add Column
+```sql
+:ALTER TABLE User ADD name:STRING
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `ALTER TABLE users ADD COLUMN name VARCHAR` |
+
+### Drop Column
+```sql
+:ALTER TABLE User DROP name
+```
+
+### Rename Column
+```sql
+:ALTER TABLE User RENAME name:full_name
+```
+
+### Modify Column Type
+```sql
+:ALTER TABLE User MODIFY name:TEXT
+```
+
+## Rename Table
+```sql
+:RENAME TABLE User TO Customer
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `ALTER TABLE users RENAME TO customers` |
+| MySQL | `RENAME TABLE users TO customers` |
+
+## MongoDB Collections
+
+For MongoDB, use `COLLECTION` instead of `TABLE`:
+```sql
+:CREATE COLLECTION User
+:DROP COLLECTION User
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Views" icon="eye" href="/schema/views">
+    Create virtual tables
+  </Card>
+  <Card title="Indexes" icon="bolt" href="/schema/indexes">
+    Optimize query performance
+  </Card>
+</CardGroup>

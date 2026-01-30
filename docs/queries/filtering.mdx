@@ -1,0 +1,158 @@
+---
+title: Filtering
+description: "Advanced WHERE conditions and operators"
+---
+
+Filter data using WHERE clauses with various operators.
+
+## Comparison Operators
+```sql
+:GET User WHERE age = 25
+:GET User WHERE age != 25
+:GET User WHERE age > 21
+:GET User WHERE age >= 21
+:GET User WHERE age < 65
+:GET User WHERE age <= 65
+```
+
+| Operator | Meaning |
+|----------|---------|
+| `=` | Equal |
+| `!=` | Not equal |
+| `>` | Greater than |
+| `>=` | Greater than or equal |
+| `<` | Less than |
+| `<=` | Less than or equal |
+
+## Logical Operators
+
+### AND
+```sql
+:GET User WHERE age > 21 AND status = "active"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE age > 21 AND status = 'active'` |
+| MongoDB | `db.users.find({ age: { $gt: 21 }, status: 'active' })` |
+
+### OR
+```sql
+:GET User WHERE role = "admin" OR role = "moderator"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE role = 'admin' OR role = 'moderator'` |
+| MongoDB | `db.users.find({ $or: [{ role: 'admin' }, { role: 'moderator' }] })` |
+
+### Combined with Parentheses
+```sql
+:GET User WHERE (age > 21 AND status = "active") OR role = "admin"
+```
+
+## IN Operator
+
+Match against a list of values.
+```sql
+:GET User WHERE role IN ("admin", "moderator", "editor")
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE role IN ('admin', 'moderator', 'editor')` |
+| MongoDB | `db.users.find({ role: { $in: ['admin', 'moderator', 'editor'] } })` |
+
+### NOT IN
+```sql
+:GET User WHERE status NOT IN ("banned", "suspended")
+```
+
+## BETWEEN Operator
+
+Match a range of values.
+```sql
+:GET User WHERE age BETWEEN 18 AND 65
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE age BETWEEN 18 AND 65` |
+| MongoDB | `db.users.find({ age: { $gte: 18, $lte: 65 } })` |
+
+### Date Range
+```sql
+:GET Order WHERE created_at BETWEEN "2024-01-01" AND "2024-12-31"
+```
+
+### NOT BETWEEN
+```sql
+:GET Product WHERE price NOT BETWEEN 10 AND 50
+```
+
+## LIKE Operator
+
+Pattern matching for strings.
+```sql
+:GET User WHERE name LIKE "John%"
+:GET User WHERE email LIKE "%@gmail.com"
+:GET User WHERE name LIKE "%smith%"
+```
+
+| Pattern | Meaning |
+|---------|---------|
+| `John%` | Starts with "John" |
+| `%@gmail.com` | Ends with "@gmail.com" |
+| `%smith%` | Contains "smith" |
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE name LIKE 'John%'` |
+| MongoDB | `db.users.find({ name: { $regex: '^John' } })` |
+
+### NOT LIKE
+```sql
+:GET User WHERE email NOT LIKE "%@test.com"
+```
+
+### ILIKE (Case Insensitive)
+```sql
+:GET User WHERE name ILIKE "john%"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE name ILIKE 'john%'` |
+| MySQL | `SELECT * FROM users WHERE LOWER(name) LIKE 'john%'` |
+
+## NULL Checks
+```sql
+:GET User WHERE deleted_at IS NULL
+:GET User WHERE phone IS NOT NULL
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE deleted_at IS NULL` |
+| MongoDB | `db.users.find({ deleted_at: null })` |
+
+## Complex Example
+```sql
+:GET id, name, email FROM User 
+  WHERE status = "active" 
+  AND age BETWEEN 21 AND 45 
+  AND role IN ("user", "premium") 
+  AND email LIKE "%@company.com"
+  AND deleted_at IS NULL
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Sorting" icon="arrow-up-arrow-down" href="/queries/sorting">
+    ORDER BY operations
+  </Card>
+  <Card title="Advanced Queries" icon="diagram-project" href="/queries/advanced">
+    CTEs, subqueries, and set operations
+  </Card>
+</CardGroup>

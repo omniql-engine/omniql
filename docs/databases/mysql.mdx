@@ -1,0 +1,226 @@
+---
+title: MySQL
+description: "Using OmniQL with MySQL"
+---
+
+MySQL is a popular open-source relational database known for speed and ease of use.
+
+## Quick Start
+```go
+import (
+    "database/sql"
+    
+    _ "github.com/go-sql-driver/mysql"
+    "github.com/omniql-engine/omniql"
+)
+
+// Your MySQL connection
+db, _ := sql.Open("mysql", "user:pass@tcp(localhost:3306)/mydb")
+
+// Wrap with OmniQL
+client := oql.WrapSQL(db, "MySQL")
+
+// Query with OmniQL syntax
+users, _ := client.Query(":GET User WHERE age > 21")
+```
+
+## Type Mappings
+
+| OmniQL | MySQL |
+|--------|-------|
+| `AUTO` | `INT AUTO_INCREMENT` |
+| `BIGAUTO` | `BIGINT AUTO_INCREMENT` |
+| `STRING` | `VARCHAR(255)` |
+| `STRING(n)` | `VARCHAR(n)` |
+| `TEXT` | `TEXT` |
+| `CHAR` | `CHAR` |
+| `INT` | `INT` |
+| `BIGINT` | `BIGINT` |
+| `SMALLINT` | `SMALLINT` |
+| `DECIMAL` | `DECIMAL` |
+| `NUMERIC` | `DECIMAL` |
+| `FLOAT` | `DOUBLE` |
+| `REAL` | `FLOAT` |
+| `BOOLEAN` | `BOOLEAN` |
+| `BOOL` | `BOOLEAN` |
+| `TIMESTAMP` | `TIMESTAMP` |
+| `DATETIME` | `DATETIME` |
+| `DATE` | `DATE` |
+| `TIME` | `TIME` |
+| `JSON` | `JSON` |
+| `JSONB` | `JSON` |
+| `UUID` | `CHAR(36)` |
+| `BINARY` | `BLOB` |
+| `BLOB` | `BLOB` |
+
+## Entity Naming
+
+OmniQL entities are converted to lowercase:
+
+| OmniQL | MySQL |
+|--------|-------|
+| `User` | `users` |
+| `Order` | `orders` |
+| `OrderItem` | `orderitems` |
+
+## Translation Examples
+
+### CRUD Operations
+```sql
+:GET User WHERE id = 1
+```
+```sql
+SELECT * FROM users WHERE id = 1
+```
+```sql
+:CREATE User WITH name = "John", email = "john@example.com"
+```
+```sql
+INSERT INTO users (name, email) VALUES ('John', 'john@example.com')
+```
+```sql
+:UPDATE User SET status = "active" WHERE id = 1
+```
+```sql
+UPDATE users SET status = 'active' WHERE id = 1
+```
+```sql
+:DELETE User WHERE id = 1
+```
+```sql
+DELETE FROM users WHERE id = 1
+```
+
+### Upsert
+
+OmniQL uses `ON` which translates to MySQL's `ON DUPLICATE KEY`:
+```sql
+:UPSERT User WITH email = "john@example.com", name = "John" ON email
+```
+```sql
+INSERT INTO users (email, name) VALUES ('john@example.com', 'John')
+ON DUPLICATE KEY UPDATE name = 'John'
+```
+
+### Transactions
+```sql
+:BEGIN
+:UPDATE Account SET balance = balance - 100 WHERE id = 1
+:UPDATE Account SET balance = balance + 100 WHERE id = 2
+:COMMIT
+```
+```sql
+START TRANSACTION;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+COMMIT;
+```
+
+### Window Functions (MySQL 8.0+)
+```sql
+:ROW NUMBER OVER (ORDER BY created_at) FROM User
+```
+```sql
+SELECT *, ROW_NUMBER() OVER (ORDER BY created_at) FROM users
+```
+
+### CTEs (MySQL 8.0+)
+```sql
+:CTE active_users AS (GET User WHERE active = true)
+```
+```sql
+WITH active_users AS (SELECT * FROM users WHERE active = true)
+```
+
+## Differences from PostgreSQL
+
+| Feature | PostgreSQL | MySQL |
+|---------|------------|-------|
+| Auto ID | `SERIAL` | `INT AUTO_INCREMENT` |
+| JSON binary | `JSONB` | `JSON` |
+| UUID | Native `UUID` | `CHAR(36)` |
+| String default | `VARCHAR` | `VARCHAR(255)` |
+| Float | `DOUBLE PRECISION` | `DOUBLE` |
+| Upsert | `ON CONFLICT` | `ON DUPLICATE KEY` |
+| Transaction start | `BEGIN` | `START TRANSACTION` |
+| Case-insensitive LIKE | `ILIKE` | `LOWER(col) LIKE` |
+
+### ILIKE Handling
+
+PostgreSQL has native `ILIKE` for case-insensitive matching. MySQL translates this using `LOWER()`:
+```sql
+:GET User WHERE name ILIKE "john%"
+```
+
+PostgreSQL:
+```sql
+SELECT * FROM users WHERE name ILIKE 'john%'
+```
+
+MySQL:
+```sql
+SELECT * FROM users WHERE LOWER(name) LIKE 'john%'
+```
+
+## Supported Operations
+
+### Fully Supported
+
+- All CRUD operations (GET, CREATE, UPDATE, DELETE, UPSERT, BULK INSERT, REPLACE)
+- All DDL operations (CREATE/DROP/ALTER TABLE, CREATE/DROP INDEX, CREATE/DROP VIEW)
+- All filtering operators (=, !=, >, <, IN, BETWEEN, LIKE, IS NULL, etc.)
+- Aggregations (COUNT, SUM, AVG, MIN, MAX)
+- GROUP BY, HAVING, ORDER BY, LIMIT, OFFSET
+- Joins (INNER, LEFT, RIGHT, FULL, CROSS)
+- Transactions (BEGIN, COMMIT, ROLLBACK, SAVEPOINT)
+- Permissions (GRANT, REVOKE, CREATE USER, CREATE ROLE)
+- Window functions (MySQL 8.0+)
+- CTEs (MySQL 8.0+)
+- Set operations (UNION, INTERSECT, EXCEPT - MySQL 8.0+)
+
+### Version Requirements
+
+| Feature | Minimum MySQL Version |
+|---------|----------------------|
+| Basic CRUD | 5.7+ |
+| JSON type | 5.7+ |
+| Window functions | 8.0+ |
+| CTEs | 8.0+ |
+| INTERSECT/EXCEPT | 8.0+ |
+
+## Limitations
+
+### DCL Host Binding
+
+OmniQL creates MySQL users with `@localhost` host. For other hosts, use native driver:
+```go
+db.Exec("CREATE USER 'john'@'%' IDENTIFIED BY 'secret'")
+```
+
+### Not Available in MySQL
+
+Use PostgreSQL for these:
+
+| Feature | Notes |
+|---------|-------|
+| RETURNING clause | Use `LAST_INSERT_ID()` after insert |
+| Sequences | Use AUTO_INCREMENT |
+| Custom types (ENUM) | Define inline in CREATE TABLE |
+| Domains | Not available |
+| Schemas | MySQL uses databases differently |
+| Table inheritance | Not available |
+| Partial indexes | Not available |
+| Array types | Not available |
+| Row-level security | Not available |
+| Extensions | Not available |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="MongoDB" icon="leaf" href="/databases/mongodb">
+    MongoDB specifics
+  </Card>
+  <Card title="Data Types" icon="shapes" href="/reference/data-types">
+    Type mappings
+  </Card>
+</CardGroup>

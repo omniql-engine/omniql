@@ -1,0 +1,182 @@
+---
+title: Quickstart
+description: "Get running with OmniQL in 5 minutes"
+---
+
+# Quickstart
+
+Get OmniQL running in your Go project in 5 minutes.
+
+## Installation
+```bash
+go get github.com/omniql-engine/omniql
+```
+
+## Basic Usage
+
+OmniQL wraps your existing database connection.
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+
+    _ "github.com/lib/pq"
+    "github.com/omniql-engine/omniql"
+)
+
+func main() {
+    // 1. Your existing database connection
+    db, _ := sql.Open("postgres", "postgres://localhost/mydb?sslmode=disable")
+    defer db.Close()
+
+    // 2. Wrap it with OmniQL
+    client := oql.WrapSQL(db, "PostgreSQL")
+
+    // 3. Query with OmniQL syntax
+    users, _ := client.Query(":GET User WHERE age > 21")
+
+    // 4. Results are []map[string]any
+    for _, user := range users {
+        fmt.Printf("%s is %v years old\n", user["name"], user["age"])
+    }
+}
+```
+
+## CRUD Operations
+
+All operations return `[]map[string]any`.
+
+### Create
+```go
+result, _ := client.Query(`:CREATE User WITH name:"John", age:30, email:"john@example.com"`)
+
+// result = []map[string]any{
+//     {"inserted_id": 1, "rows_affected": 1},
+// }
+fmt.Println("Created user:", result[0]["inserted_id"])
+```
+
+### Read
+```go
+users, _ := client.Query(":GET User WHERE active = true ORDER BY created_at DESC LIMIT 10")
+
+// users = []map[string]any{
+//     {"id": 1, "name": "John", "age": 30, "active": true},
+//     {"id": 2, "name": "Jane", "age": 25, "active": true},
+// }
+for _, user := range users {
+    fmt.Println(user["name"])
+}
+```
+
+### Update
+```go
+result, _ := client.Query(`:UPDATE User SET verified:true WHERE id = 1`)
+
+// result = []map[string]any{
+//     {"rows_affected": 1},
+// }
+fmt.Println("Updated rows:", result[0]["rows_affected"])
+```
+
+### Delete
+```go
+result, _ := client.Query(`:DELETE User WHERE status = "inactive"`)
+
+// result = []map[string]any{
+//     {"rows_affected": 5},
+// }
+fmt.Println("Deleted rows:", result[0]["rows_affected"])
+```
+
+### Count
+```go
+result, _ := client.Query(":COUNT User WHERE active = true")
+
+// result = []map[string]any{
+//     {"count": 42},
+// }
+fmt.Println("Active users:", result[0]["count"])
+```
+
+## Other Databases
+
+### MySQL
+```go
+import _ "github.com/go-sql-driver/mysql"
+
+db, _ := sql.Open("mysql", "user:pass@tcp(localhost:3306)/mydb")
+client := oql.WrapSQL(db, "MySQL")
+
+users, _ := client.Query(":GET User WHERE age > 21")
+```
+
+### MongoDB
+```go
+import "go.mongodb.org/mongo-driver/mongo"
+
+mongoClient, _ := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+db := mongoClient.Database("mydb")
+
+client := oql.WrapMongo(db)
+
+users, _ := client.Query(":GET User WHERE age > 21")
+```
+
+### Redis
+```go
+import "github.com/redis/go-redis/v9"
+
+rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+
+client := oql.WrapRedis(rdb, "")
+
+users, _ := client.Query(":GET User WHERE id = 42")
+```
+
+## Polyglot Persistence
+
+Same query syntax, any database.
+```go
+// Setup multiple clients
+pgClient := oql.WrapSQL(pgDB, "PostgreSQL")
+mongoClient := oql.WrapMongo(mongoDB)
+redisClient := oql.WrapRedis(redisDB, "")
+
+// Same query works on all
+query := ":GET User WHERE status = \"active\""
+
+pgUsers, _ := pgClient.Query(query)
+mongoUsers, _ := mongoClient.Query(query)
+redisUsers, _ := redisClient.Query(query)
+```
+
+## Error Handling
+```go
+users, err := client.Query(":GET User WHERE age > 21")
+if err != nil {
+    log.Printf("Query failed: %v", err)
+    return
+}
+
+fmt.Printf("Found %d users\n", len(users))
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Query Basics" icon="magnifying-glass" href="/queries/basics">
+    Learn GET syntax and filtering
+  </Card>
+  <Card title="Schema Definition" icon="table" href="/schema/tables">
+    Define tables with DDL
+  </Card>
+  <Card title="Mutations" icon="pen" href="/mutations/insert">
+    Insert and Update data
+  </Card>
+  <Card title="Go Package" icon="code" href="/integration/go-package">
+    Full API reference
+  </Card>
+</CardGroup>

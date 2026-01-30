@@ -1,0 +1,365 @@
+---
+title: Redis
+description: "Using OmniQL with Redis"
+---
+
+Redis is an in-memory data store used for caching, sessions, and real-time applications.
+
+## Quick Start
+```go
+import (
+    "github.com/redis/go-redis/v9"
+    "github.com/omniql-engine/omniql"
+)
+
+// Your Redis connection
+rdb := redis.NewClient(&redis.Options{
+    Addr: "localhost:6379",
+})
+
+// Wrap with OmniQL
+client := oql.WrapRedis(rdb, "tenant_1")
+
+// Query with OmniQL syntax
+user, _ := client.Query(":GET User WHERE id = 42")
+```
+
+## How Redis Works
+
+Redis is **key-value**, not relational. It cannot filter data natively like SQL databases.
+
+| Database | WHERE Filtering |
+|----------|-----------------|
+| PostgreSQL | Native (database does it) |
+| MySQL | Native (database does it) |
+| MongoDB | Native (database does it) |
+| Redis | OmniQL handles it in Go |
+
+OmniQL bridges this gap by providing filtering logic that works seamlessly with your queries.
+
+## Data Model
+
+OmniQL maps entities to Redis Hash structures:
+
+| Concept | OmniQL | Redis |
+|---------|--------|-------|
+| Entity | `User` | Hash keys with prefix |
+| Record | `User WHERE id = 1` | `HGETALL tenant:user:1` |
+| Field | `name`, `email` | Hash fields |
+
+### Key Pattern
+```
+{tenant}:{entity}:{id}
+```
+
+Examples:
+```
+tenant_1:user:1          → User with id 1
+tenant_1:user:2          → User with id 2
+tenant_1:order:1001      → Order with id 1001
+```
+
+## Query Types
+
+### Direct Key Lookup (Fast)
+
+When you query by `id`, OmniQL translates directly to Redis commands:
+```go
+// OmniQL
+user, _ := client.Query(":GET User WHERE id = 42")
+
+// Internally executes:
+// HGETALL tenant_1:user:42
+```
+
+This is **instant** - same performance as native Redis.
+
+### Filtered Query (Scan + Filter)
+
+When you query by other fields, OmniQL scans keys and filters results:
+```go
+// OmniQL
+users, _ := client.Query(":GET User WHERE age > 21 AND status = \"active\" LIMIT 10")
+
+// Internally:
+// 1. SCAN tenant_1:user:*
+// 2. HGETALL each key
+// 3. Filter using MatchesConditions()
+// 4. Return matching results up to LIMIT
+```
+
+This works but scans data - use for smaller datasets or with LIMIT.
+
+## CRUD Operations
+
+### GET (HGETALL)
+
+**By ID (direct lookup):**
+```go
+user, _ := client.Query(":GET User WHERE id = 1")
+// → HGETALL tenant_1:user:1
+```
+
+**With filtering:**
+```go
+users, _ := client.Query(":GET User WHERE status = \"active\" LIMIT 10")
+// → SCAN + HGETALL + filter
+```
+
+**All records:**
+```go
+users, _ := client.Query(":GET User")
+// → SCAN tenant_1:user:* + HGETALL each
+```
+
+### CREATE (HMSET)
+```go
+result, _ := client.Query(`:CREATE User WITH name:"John", email:"john@example.com", age:30`)
+// → HMSET tenant_1:user:{generated_id} name "John" email "john@example.com" age "30"
+
+// result = []map[string]any{{"inserted_id": "uuid-here", "rows_affected": 1}}
+```
+
+### UPDATE (HSET)
+```go
+result, _ := client.Query(`:UPDATE User SET status:"active" WHERE id = 1`)
+// → HSET tenant_1:user:1 status "active"
+
+// result = []map[string]any{{"rows_affected": 1}}
+```
+
+### DELETE (DEL)
+```go
+result, _ := client.Query(`:DELETE User WHERE id = 1`)
+// → DEL tenant_1:user:1
+
+// result = []map[string]any{{"rows_affected": 1}}
+```
+
+### BULK INSERT
+```go
+result, _ := client.Query(`:BULK INSERT User WITH [name:"Alice", age:28], [name:"Bob", age:32]`)
+// → HMSET tenant_1:user:1 name "Alice" age "28"
+// → HMSET tenant_1:user:2 name "Bob" age "32"
+```
+
+### UPSERT
+```go
+result, _ := client.Query(`:UPSERT User WITH id:1, name:"John" ON id`)
+// → HMSET tenant_1:user:1 name "John"
+```
+
+### DROP TABLE
+```go
+result, _ := client.Query(`:DROP TABLE User`)
+// → Deletes all keys matching tenant_1:user:*
+```
+
+## Filtering Support
+
+OmniQL supports all standard operators for Redis filtering:
+
+| Operator | Example | Supported |
+|----------|---------|-----------|
+| `=` | `status = "active"` | ✅ |
+| `!=` | `status != "banned"` | ✅ |
+| `>` | `age > 21` | ✅ |
+| `<` | `age < 65` | ✅ |
+| `>=` | `score >= 100` | ✅ |
+| `<=` | `price <= 50` | ✅ |
+| `IN` | `status IN ("active", "pending")` | ✅ |
+| `NOT IN` | `role NOT IN ("admin", "mod")` | ✅ |
+| `BETWEEN` | `age BETWEEN 18 AND 65` | ✅ |
+| `LIKE` | `name LIKE "John%"` | ✅ |
+| `IS NULL` | `deleted_at IS NULL` | ✅ |
+| `IS NOT NULL` | `email IS NOT NULL` | ✅ |
+| `AND` | `age > 21 AND active = true` | ✅ |
+| `OR` | `status = "active" OR role = "admin"` | ✅ |
+
+### Example with Complex Filter
+```go
+users, _ := client.Query(`
+    :GET User 
+    WHERE age > 21 
+    AND status IN ("active", "pending") 
+    AND email IS NOT NULL
+    ORDER BY name ASC
+    LIMIT 10
+`)
+```
+
+## Aggregations
+
+OmniQL provides aggregation operations:
+
+### COUNT
+```go
+result, _ := client.Query(":COUNT User WHERE active = true")
+// result = []map[string]any{{"count": 42}}
+```
+
+### SUM
+```go
+result, _ := client.Query(":SUM balance FROM Account")
+// result = []map[string]any{{"sum": 15000.50}}
+```
+
+### AVG
+```go
+result, _ := client.Query(":AVG age FROM User")
+// result = []map[string]any{{"avg": 28.5}}
+```
+
+### MIN / MAX
+```go
+result, _ := client.Query(":MIN price FROM Product")
+// result = []map[string]any{{"min": 9.99}}
+
+result, _ := client.Query(":MAX score FROM Player")
+// result = []map[string]any{{"max": 99500}}
+```
+
+## Transactions
+
+Redis supports transactions with MULTI/EXEC:
+```go
+client.Query(":BEGIN")
+client.Query(`:UPDATE User SET login_count:5 WHERE id = 1`)
+client.Query(`:UPDATE User SET last_login:"2025-01-15" WHERE id = 1`)
+client.Query(":COMMIT")
+```
+
+Translates to:
+```redis
+MULTI
+HSET tenant_1:user:1 login_count "5"
+HSET tenant_1:user:1 last_login "2025-01-15"
+EXEC
+```
+
+**Rollback:**
+```go
+client.Query(":BEGIN")
+client.Query(`:UPDATE User SET status:"banned" WHERE id = 1`)
+client.Query(":ROLLBACK")  // Cancels - nothing executed
+```
+
+> **Note:** `DISCARD` cancels the transaction before execution. Once `EXEC` runs, changes cannot be rolled back.
+
+## Permissions (ACL)
+
+Redis uses ACL for user management:
+
+### CREATE USER
+```go
+client.Query(`:CREATE USER analyst WITH PASSWORD "secret123"`)
+// → ACL SETUSER analyst on >secret123
+```
+
+### GRANT
+```go
+client.Query(`:GRANT READ ON User TO analyst`)
+// → ACL SETUSER analyst +hgetall +get
+```
+
+### REVOKE
+```go
+client.Query(`:REVOKE WRITE ON User FROM analyst`)
+// → ACL SETUSER analyst -hset -hmset -del
+```
+
+### DROP USER
+```go
+client.Query(`:DROP USER analyst`)
+// → ACL DELUSER analyst
+```
+
+> **Note:** Redis has users with permissions, not roles. `CREATE ROLE`, `DROP ROLE`, `ASSIGN ROLE` are not supported.
+
+## Type Storage
+
+All Redis values are stored as strings:
+
+| OmniQL Type | Redis Storage |
+|-------------|---------------|
+| `STRING` | String |
+| `INT` | String ("42") |
+| `BOOLEAN` | String ("true"/"false") |
+| `TIMESTAMP` | String (ISO format) |
+| `JSON` | String (serialized) |
+| `UUID` | String |
+
+OmniQL automatically converts types when filtering.
+
+## Supported Operations
+
+| Operation | Supported | Notes |
+|-----------|-----------|-------|
+| GET | ✅ | HGETALL |
+| CREATE | ✅ | HMSET |
+| UPDATE | ✅ | HSET |
+| DELETE | ✅ | DEL |
+| UPSERT | ✅ | HMSET |
+| BULK INSERT | ✅ | Multiple HMSET |
+| DROP TABLE | ✅ | DEL pattern |
+| COUNT | ✅ | Via OmniQL |
+| SUM / AVG / MIN / MAX | ✅ | Via OmniQL |
+| WHERE (all operators) | ✅ | Via OmniQL filtering |
+| ORDER BY | ✅ | Via OmniQL |
+| LIMIT / OFFSET | ✅ | Via OmniQL |
+| BEGIN / COMMIT | ✅ | MULTI / EXEC |
+| ROLLBACK | ✅ | DISCARD |
+| CREATE USER | ✅ | ACL SETUSER |
+| GRANT / REVOKE | ✅ | ACL SETUSER |
+
+## Not Supported
+
+| Feature | Reason |
+|---------|--------|
+| JOIN | Key-value model has no relations |
+| GROUP BY / HAVING | Use aggregations instead |
+| Window functions | No SQL semantics |
+| SAVEPOINT | Redis has no partial rollback |
+| Roles | Redis has users only, not roles |
+
+## Performance Considerations
+
+| Query Type | Performance | When to Use |
+|------------|-------------|-------------|
+| `WHERE id = X` | ⚡ Instant | Always preferred |
+| `WHERE field = X LIMIT N` | 🔄 Scan + filter | Small datasets, with LIMIT |
+| `WHERE field = X` (no limit) | ⚠️ Full scan | Avoid on large datasets |
+
+### Best Practices
+
+1. **Use ID lookups when possible** - Direct key access is instant
+2. **Always use LIMIT** - Prevents scanning entire keyspace
+3. **Index hot queries in SQL** - For complex filtering, consider PostgreSQL
+4. **Use Redis for what it's good at** - Sessions, caching, counters, real-time data
+
+## When to Use Redis with OmniQL
+
+**Good use cases:**
+- Session storage
+- User profiles / settings
+- Caching layer
+- Real-time counters
+- Simple CRUD by ID
+- Aggregations on bounded datasets
+
+**Consider PostgreSQL instead:**
+- Complex queries with multiple filters
+- Relational data with joins
+- Large datasets requiring full scans
+- Data requiring GROUP BY
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL" icon="database" href="/databases/postgresql">
+    Full-featured SQL database
+  </Card>
+  <Card title="Operators" icon="code" href="/reference/operators">
+    All supported operators
+  </Card>
+</CardGroup>

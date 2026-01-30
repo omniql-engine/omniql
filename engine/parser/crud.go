@@ -3,7 +3,7 @@ package parser
 import (
 	"strings"
 
-	"github.com/omniql-engine/omniql/mapping"
+	// "github.com/omniql-engine/omniql/mapping"
 	"github.com/omniql-engine/omniql/engine/ast"
 )
 
@@ -97,40 +97,40 @@ func (p *Parser) parseGet() (*ast.QueryNode, error) {
 		node.Columns = []*ast.ExpressionNode{makeFieldExpr("*", firstTok.Position)}
 	}
 
-	// Check for aggregate BEFORE clauses (GET User COUNT WHERE id = 1)
-	if !p.isAtEnd() {
-		aggUpper := strings.ToUpper(p.current().Value)
-		if mapping.IsAggregate(aggUpper) {
-			aggTok := p.current()
-			p.advance()
+	// // Check for aggregate BEFORE clauses (GET User COUNT WHERE id = 1)
+	// if !p.isAtEnd() {
+	// 	aggUpper := strings.ToUpper(p.current().Value)
+	// 	if mapping.IsAggregate(aggUpper) {
+	// 		aggTok := p.current()
+	// 		p.advance()
 
-			node.Operation = aggUpper
-			node.Aggregate = &ast.AggregateNode{
-				Function: aggUpper,
-				Position: aggTok.Position,
-			}
+	// 		node.Operation = aggUpper
+	// 		node.Aggregate = &ast.AggregateNode{
+	// 			Function: aggUpper,
+	// 			Position: aggTok.Position,
+	// 		}
 
-			// Check for DISTINCT modifier
-			if !p.isAtEnd() && strings.ToUpper(p.current().Value) == "DISTINCT" {
-				p.advance()
-				node.Distinct = true
-			}
+	// 		// Check for DISTINCT modifier
+	// 		if !p.isAtEnd() && strings.ToUpper(p.current().Value) == "DISTINCT" {
+	// 			p.advance()
+	// 			node.Distinct = true
+	// 		}
 
-			// Optional field for aggregate (e.g., SUM amount)
-			if !p.isAtEnd() {
-				curUpper := strings.ToUpper(p.current().Value)
-				twoWord := ""
-				if p.pos+1 < len(p.tokens) {
-					twoWord = curUpper + " " + strings.ToUpper(p.peek(1).Value)
-				}
-				if !mapping.IsClause(curUpper) && !mapping.IsClause(twoWord) {
-					fieldTok := p.current()
-					fieldVal := p.advance().Value
-					node.Aggregate.FieldExpr = makeFieldExpr(fieldVal, fieldTok.Position)
-				}
-			}
-		}
-	}
+	// 		// Optional field for aggregate (e.g., SUM amount)
+	// 		if !p.isAtEnd() {
+	// 			curUpper := strings.ToUpper(p.current().Value)
+	// 			twoWord := ""
+	// 			if p.pos+1 < len(p.tokens) {
+	// 				twoWord = curUpper + " " + strings.ToUpper(p.peek(1).Value)
+	// 			}
+	// 			if !mapping.IsClause(curUpper) && !mapping.IsClause(twoWord) {
+	// 				fieldTok := p.current()
+	// 				fieldVal := p.advance().Value
+	// 				node.Aggregate.FieldExpr = makeFieldExpr(fieldVal, fieldTok.Position)
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	// Optional clauses (WHERE, ORDER BY, LIMIT, GROUP BY, HAVING)
 	if err := p.parseClauses(node); err != nil {

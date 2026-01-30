@@ -1,0 +1,170 @@
+---
+title: Advanced Queries
+description: "CTEs, subqueries, set operations, and CASE expressions"
+---
+
+Advanced query features for complex data retrieval.
+
+## Common Table Expressions (CTE)
+
+CTEs create temporary named result sets for use in queries.
+```sql
+:CTE active_users AS (GET User WHERE active = true)
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `WITH active_users AS (SELECT * FROM users WHERE active = true)` |
+| MySQL | `WITH active_users AS (SELECT * FROM users WHERE active = true)` |
+
+### Use Cases
+
+CTEs are useful for:
+- Breaking complex queries into readable parts
+- Reusing the same subquery multiple times
+- Recursive queries
+
+## Subqueries
+
+Filter using results from another query.
+```sql
+:SUBQUERY id IN (GET User WHERE active = true)
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM ... WHERE id IN (SELECT id FROM users WHERE active = true)` |
+
+### Example: Users with Orders
+```sql
+:SUBQUERY user_id IN (GET Order WHERE total > 100)
+```
+
+## EXISTS
+
+Check if a subquery returns any results.
+```sql
+:EXISTS (GET User WHERE email = "john@example.com")
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT EXISTS(SELECT 1 FROM users WHERE email = 'john@example.com')` |
+| MongoDB | `db.users.countDocuments({ email: 'john@example.com' }, { limit: 1 })` |
+
+## Set Operations
+
+Combine results from multiple queries.
+
+### UNION
+
+Combine results, removing duplicates.
+```sql
+:UNION (GET User WHERE age > 50) (GET User WHERE role = "premium")
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `(SELECT * FROM users WHERE age > 50) UNION (SELECT * FROM users WHERE role = 'premium')` |
+
+### UNION ALL
+
+Combine results, keeping duplicates.
+```sql
+:UNION ALL (GET User WHERE department = "sales") (GET User WHERE department = "marketing")
+```
+
+### INTERSECT
+
+Return only rows that appear in both queries.
+```sql
+:INTERSECT (GET User WHERE age > 30) (GET User WHERE active = true)
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `(SELECT * FROM users WHERE age > 30) INTERSECT (SELECT * FROM users WHERE active = true)` |
+
+### EXCEPT
+
+Return rows from first query that don't appear in second.
+```sql
+:EXCEPT (GET User WHERE active = true) (GET User WHERE role = "banned")
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `(SELECT * FROM users WHERE active = true) EXCEPT (SELECT * FROM users WHERE role = 'banned')` |
+
+## CASE Expressions
+
+Conditional logic within queries. CASE must be used within GET expressions.
+```sql
+:GET User WITH CASE WHEN age > 25 THEN "adult" ELSE "minor" END AS category
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT *, CASE WHEN age > 25 THEN 'adult' ELSE 'minor' END AS category FROM users` |
+
+### Multiple Conditions
+```sql
+:GET User WITH CASE 
+  WHEN age < 18 THEN "minor" 
+  WHEN age < 65 THEN "adult" 
+  ELSE "senior" 
+END AS age_group
+```
+
+### CASE in WHERE
+```sql
+:GET Order WHERE CASE WHEN total > 1000 THEN "large" ELSE "small" END = "large"
+```
+
+## Database Support
+
+| Feature | PostgreSQL | MySQL | MongoDB |
+|---------|------------|-------|---------|
+| CTE | Yes | Yes (8.0+) | No |
+| SUBQUERY | Yes | Yes | Via aggregation |
+| EXISTS | Yes | Yes | Via count |
+| UNION | Yes | Yes | Via $unionWith |
+| UNION ALL | Yes | Yes | Via $unionWith |
+| INTERSECT | Yes | Yes (8.0+) | Via aggregation |
+| EXCEPT | Yes | Yes (8.0+) | Via aggregation |
+| CASE | Yes | Yes | Via $cond |
+
+## Complete Examples
+
+### Active Premium Users with Order Stats
+```sql
+:CTE premium AS (GET User WHERE role = "premium" AND active = true)
+```
+
+### Users Without Recent Orders
+```sql
+:EXCEPT (GET User WHERE active = true) (SUBQUERY user_id IN (GET Order WHERE created_at > "2024-01-01"))
+```
+
+### Categorized Products
+```sql
+:GET Product WITH 
+  name, 
+  price, 
+  CASE 
+    WHEN price < 10 THEN "budget" 
+    WHEN price < 100 THEN "standard" 
+    ELSE "premium" 
+  END AS tier
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Window Functions" icon="chart-line" href="/queries/window-functions">
+    ROW NUMBER, RANK, LAG, LEAD
+  </Card>
+  <Card title="Joins" icon="link" href="/queries/joins">
+    Combine multiple tables
+  </Card>
+</CardGroup>

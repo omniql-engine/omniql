@@ -1,0 +1,354 @@
+---
+title: Clauses
+description: "Complete clause reference"
+---
+
+All clauses supported by OmniQL.
+
+## WHERE
+
+Filter records based on conditions.
+```sql
+:GET User WHERE condition
+:UPDATE User SET field = value WHERE condition
+:DELETE User WHERE condition
+```
+
+### Examples
+```sql
+:GET User WHERE id = 1
+:GET User WHERE age > 21 AND status = "active"
+:GET User WHERE role IN ("admin", "moderator")
+```
+
+## ORDER BY
+
+Sort results.
+```sql
+:GET Entity ORDER BY column
+:GET Entity ORDER BY column ASC
+:GET Entity ORDER BY column DESC
+:GET Entity ORDER BY column1 ASC, column2 DESC
+```
+
+### Examples
+```sql
+:GET User ORDER BY name
+:GET User ORDER BY created_at DESC
+:GET User ORDER BY status ASC, name ASC
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users ORDER BY name` |
+| MongoDB | `db.users.find({}).sort({ name: 1 })` |
+
+## LIMIT
+
+Restrict number of results.
+```sql
+:GET Entity LIMIT n
+```
+
+### Examples
+```sql
+:GET User LIMIT 10
+:GET User WHERE active = true ORDER BY created_at DESC LIMIT 5
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users LIMIT 10` |
+| MySQL | `SELECT * FROM users LIMIT 10` |
+| MongoDB | `db.users.find({}).limit(10)` |
+
+## OFFSET
+
+Skip rows for pagination.
+```sql
+:GET Entity LIMIT n OFFSET m
+```
+
+### Examples
+```sql
+:GET User LIMIT 10 OFFSET 0
+:GET User LIMIT 10 OFFSET 10
+:GET User LIMIT 10 OFFSET 20
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users LIMIT 10 OFFSET 20` |
+| MongoDB | `db.users.find({}).skip(20).limit(10)` |
+
+### Pagination Pattern
+```sql
+-- Page 1
+:GET User ORDER BY id LIMIT 20 OFFSET 0
+
+-- Page 2
+:GET User ORDER BY id LIMIT 20 OFFSET 20
+
+-- Page 3
+:GET User ORDER BY id LIMIT 20 OFFSET 40
+```
+
+## GROUP BY
+
+Group rows for aggregation.
+```sql
+:COUNT * FROM Entity GROUP BY column
+:SUM field FROM Entity GROUP BY column
+:GET Entity WITH column, SUM(field) AS alias GROUP BY column
+```
+
+### Examples
+```sql
+:COUNT * FROM User GROUP BY status
+:SUM total FROM Order GROUP BY user_id
+:GET Product WITH category, AVG(price) AS avg_price GROUP BY category
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT status, COUNT(*) FROM users GROUP BY status` |
+| MongoDB | `db.users.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }])` |
+
+## HAVING
+
+Filter groups after aggregation.
+```sql
+:COUNT * FROM Entity GROUP BY column HAVING COUNT(*) > n
+:SUM field FROM Entity GROUP BY column HAVING SUM(field) > n
+```
+
+### Examples
+```sql
+:COUNT * FROM User GROUP BY status HAVING COUNT(*) > 10
+:SUM total FROM Order GROUP BY user_id HAVING SUM(total) > 1000
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT status, COUNT(*) FROM users GROUP BY status HAVING COUNT(*) > 10` |
+
+### WHERE vs HAVING
+```sql
+-- WHERE: filters rows BEFORE grouping
+:COUNT * FROM Order WHERE created_at > "2024-01-01" GROUP BY status
+
+-- HAVING: filters groups AFTER aggregation
+:COUNT * FROM Order GROUP BY status HAVING COUNT(*) > 5
+
+-- Combined
+:COUNT * FROM Order 
+  WHERE created_at > "2024-01-01" 
+  GROUP BY status 
+  HAVING COUNT(*) > 5
+```
+
+## DISTINCT
+
+Return unique values. Add DISTINCT after the entity.
+```sql
+:GET Entity DISTINCT
+:GET col1, col2 FROM Entity DISTINCT
+```
+
+### Examples
+```sql
+:GET User DISTINCT
+:GET status FROM User DISTINCT
+:GET user_id, status FROM Order DISTINCT
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT DISTINCT * FROM users` |
+| MongoDB | `db.users.distinct()` |
+
+## AS (Alias)
+
+Rename columns in output.
+```sql
+:GET Entity WITH column AS alias
+:GET Entity WITH SUM(field) AS alias
+```
+
+### Examples
+```sql
+:GET User WITH id, name AS full_name
+:GET Order WITH status, SUM(total) AS revenue GROUP BY status
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT id, name AS full_name FROM users` |
+
+## SET
+
+Specify values for UPDATE.
+```sql
+:UPDATE Entity SET field = value WHERE condition
+:UPDATE Entity SET field1 = value1, field2 = value2 WHERE condition
+```
+
+### Examples
+```sql
+:UPDATE User SET name = "John" WHERE id = 1
+:UPDATE User SET status = "active", updated_at = CURRENT_TIMESTAMP WHERE id = 1
+:UPDATE Product SET price = price * 1.1 WHERE category = "electronics"
+```
+
+## WITH
+
+Specify columns for SELECT or values for CREATE.
+
+### In SELECT (columns)
+```sql
+:GET Entity WITH column1, column2, column3
+:GET Entity WITH column, SUM(field) AS alias GROUP BY column
+```
+
+### In CREATE (values)
+```sql
+:CREATE Entity WITH field = value, field = value
+```
+
+### Examples
+```sql
+:GET User WITH id, name, email
+:GET Order WITH status, SUM(total) AS revenue GROUP BY status
+:CREATE User WITH name = "John", email = "john@example.com", age = 30
+:CREATE Product WITH name = "Widget", price = 9.99, quantity = 100
+```
+
+<Note>
+COUNT(*) is not supported in WITH clause. Use standalone syntax: `:COUNT * FROM Entity`
+</Note>
+
+## ON
+
+Specify join conditions or conflict handling.
+
+### In Joins
+```sql
+:INNER JOIN Entity1 Entity2 ON field1 = field2
+```
+
+### In Upsert
+```sql
+:UPSERT Entity WITH fields ON conflict_column
+```
+
+### Examples
+```sql
+:INNER JOIN Order User ON user_id = id
+:UPSERT User WITH email = "john@example.com", name = "John" ON email
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `INSERT INTO users (...) ON CONFLICT (email) DO UPDATE SET ...` |
+| MySQL | `INSERT INTO users (...) ON DUPLICATE KEY UPDATE ...` |
+
+## OVER (Window Functions)
+
+Define window for window functions.
+```sql
+:ROW NUMBER OVER (ORDER BY column) FROM Entity
+:RANK OVER (PARTITION BY column ORDER BY column) FROM Entity
+```
+
+### Examples
+```sql
+:ROW NUMBER OVER (ORDER BY created_at) FROM User
+:RANK OVER (PARTITION BY department ORDER BY salary DESC) FROM User
+:DENSE RANK OVER (PARTITION BY category ORDER BY price) FROM Product
+```
+
+## PARTITION BY
+
+Divide rows into groups for window functions. Used inside OVER.
+```sql
+:FUNCTION OVER (PARTITION BY column ORDER BY column) FROM Entity
+```
+
+### Examples
+```sql
+:ROW NUMBER OVER (PARTITION BY department ORDER BY name) FROM User
+:LAG salary OVER (PARTITION BY department ORDER BY hire_date) FROM Employee
+```
+
+## TO / FROM
+
+Used in DCL for permission targets.
+```sql
+:GRANT permission ON Entity TO user
+:REVOKE permission ON Entity FROM user
+:ASSIGN ROLE role TO user
+:REVOKE ROLE role FROM user
+```
+
+### Examples
+```sql
+:GRANT READ ON User TO analyst
+:REVOKE DELETE ON Order FROM intern
+:ASSIGN ROLE admin TO john
+```
+
+## Clause Order
+
+Clauses must appear in this order:
+```sql
+:GET Entity
+  WITH columns
+  WHERE conditions
+  GROUP BY column
+  HAVING condition
+  ORDER BY column
+  LIMIT n
+  OFFSET m
+```
+
+### Complete Example
+```sql
+:SUM total FROM Order
+  WHERE created_at > "2024-01-01"
+  GROUP BY user_id
+  HAVING SUM(total) >= 500
+  ORDER BY sum DESC
+  LIMIT 100
+  OFFSET 0
+```
+
+## Clause Summary
+
+| Clause | Purpose | Used With |
+|--------|---------|-----------|
+| WHERE | Filter rows | GET, UPDATE, DELETE, COUNT, SUM, AVG |
+| ORDER BY | Sort results | GET |
+| LIMIT | Restrict count | GET |
+| OFFSET | Skip rows | GET |
+| GROUP BY | Group for aggregation | COUNT, SUM, AVG, MIN, MAX |
+| HAVING | Filter groups | Aggregates with GROUP BY |
+| DISTINCT | Unique values | GET |
+| WITH | Columns or values | GET, CREATE |
+| SET | Update values | UPDATE |
+| ON | Join/conflict condition | JOIN, UPSERT |
+| AS | Column alias | GET |
+| OVER | Window definition | Window functions |
+| PARTITION BY | Window grouping | Window functions |
+| TO | Permission target | GRANT, ASSIGN ROLE |
+| FROM | Permission source | REVOKE, REVOKE ROLE, COUNT, SUM, AVG |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Data Types" icon="shapes" href="/reference/data-types">
+    Type reference
+  </Card>
+  <Card title="Operators" icon="code" href="/reference/operators">
+    Operator reference
+  </Card>
+</CardGroup>

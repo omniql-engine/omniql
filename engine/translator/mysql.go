@@ -545,6 +545,9 @@ func buildMySQLString(query *pb.RelationalQuery) string {
 		return sql
 	case "set_transaction":
 		return mysqlbuilders.BuildSetTransactionSQL(query.IsolationLevel)
+	case "with":
+		sql, _ := mysqlbuilders.BuildCTESQL(query)
+		return sql
 	default:
 		return ""
 	}

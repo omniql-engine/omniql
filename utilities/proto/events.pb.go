@@ -1512,6 +1512,12 @@ type KeyValueQuery struct {
 	BulkPairs     []*KeyValuePair        `protobuf:"bytes,4,rep,name=bulk_pairs,json=bulkPairs,proto3" json:"bulk_pairs,omitempty"`
 	SessionId     string                 `protobuf:"bytes,5,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	CommandString string                 `protobuf:"bytes,6,opt,name=command_string,json=commandString,proto3" json:"command_string,omitempty"`
+	// Filtering support
+	Entity        string            `protobuf:"bytes,7,opt,name=entity,proto3" json:"entity,omitempty"`                   // Entity name (e.g., "user")
+	Conditions    []*QueryCondition `protobuf:"bytes,8,rep,name=conditions,proto3" json:"conditions,omitempty"`           // WHERE conditions
+	Limit         int32             `protobuf:"varint,9,opt,name=limit,proto3" json:"limit,omitempty"`                    // LIMIT clause
+	Offset        int32             `protobuf:"varint,10,opt,name=offset,proto3" json:"offset,omitempty"`                 // OFFSET clause
+	OrderBy       []*OrderByClause  `protobuf:"bytes,11,rep,name=order_by,json=orderBy,proto3" json:"order_by,omitempty"` // ORDER BY clauses
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1586,6 +1592,41 @@ func (x *KeyValueQuery) GetCommandString() string {
 		return x.CommandString
 	}
 	return ""
+}
+
+func (x *KeyValueQuery) GetEntity() string {
+	if x != nil {
+		return x.Entity
+	}
+	return ""
+}
+
+func (x *KeyValueQuery) GetConditions() []*QueryCondition {
+	if x != nil {
+		return x.Conditions
+	}
+	return nil
+}
+
+func (x *KeyValueQuery) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *KeyValueQuery) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *KeyValueQuery) GetOrderBy() []*OrderByClause {
+	if x != nil {
+		return x.OrderBy
+	}
+	return nil
 }
 
 type KeyValuePair struct {
@@ -2429,7 +2470,7 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"session_id\x18\x1f \x01(\tR\tsessionId\x12.\n" +
 	"\x06having\x18  \x03(\v2\x16.omniql.QueryConditionR\x06having\x12\x1a\n" +
 	"\bdistinct\x18! \x01(\bR\bdistinct\x12\x14\n" +
-	"\x05query\x18\" \x01(\tR\x05query\"\xca\x01\n" +
+	"\x05query\x18\" \x01(\tR\x05query\"\xfa\x02\n" +
 	"\rKeyValueQuery\x12\x18\n" +
 	"\acommand\x18\x01 \x01(\tR\acommand\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x12\n" +
@@ -2438,7 +2479,15 @@ const file_utilities_proto_events_proto_rawDesc = "" +
 	"bulk_pairs\x18\x04 \x03(\v2\x14.omniql.KeyValuePairR\tbulkPairs\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x05 \x01(\tR\tsessionId\x12%\n" +
-	"\x0ecommand_string\x18\x06 \x01(\tR\rcommandString\"6\n" +
+	"\x0ecommand_string\x18\x06 \x01(\tR\rcommandString\x12\x16\n" +
+	"\x06entity\x18\a \x01(\tR\x06entity\x126\n" +
+	"\n" +
+	"conditions\x18\b \x03(\v2\x16.omniql.QueryConditionR\n" +
+	"conditions\x12\x14\n" +
+	"\x05limit\x18\t \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\n" +
+	" \x01(\x05R\x06offset\x120\n" +
+	"\border_by\x18\v \x03(\v2\x15.omniql.OrderByClauseR\aorderBy\"6\n" +
 	"\fKeyValuePair\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"\xbf\x01\n" +
@@ -2578,27 +2627,29 @@ var file_utilities_proto_events_proto_depIdxs = []int32{
 	5,  // 46: omniql.DocumentQuery.select_columns:type_name -> omniql.SelectColumn
 	2,  // 47: omniql.DocumentQuery.having:type_name -> omniql.QueryCondition
 	9,  // 48: omniql.KeyValueQuery.bulk_pairs:type_name -> omniql.KeyValuePair
-	1,  // 49: omniql.JoinClause.left_expr:type_name -> omniql.Expression
-	1,  // 50: omniql.JoinClause.right_expr:type_name -> omniql.Expression
-	1,  // 51: omniql.AggregateClause.field_expr:type_name -> omniql.Expression
-	1,  // 52: omniql.OrderByClause.field_expr:type_name -> omniql.Expression
-	1,  // 53: omniql.WindowClause.field_expr:type_name -> omniql.Expression
-	1,  // 54: omniql.WindowClause.partition_by:type_name -> omniql.Expression
-	12, // 55: omniql.WindowClause.order_by:type_name -> omniql.OrderByClause
-	6,  // 56: omniql.CTEClause.cte_query:type_name -> omniql.RelationalQuery
-	14, // 57: omniql.CTEClause.additional_ctes:type_name -> omniql.CTEClause
-	1,  // 58: omniql.SubqueryClause.field_expr:type_name -> omniql.Expression
-	6,  // 59: omniql.SubqueryClause.subquery:type_name -> omniql.RelationalQuery
-	1,  // 60: omniql.UpsertClause.conflict_fields:type_name -> omniql.Expression
-	4,  // 61: omniql.UpsertClause.update_fields:type_name -> omniql.QueryField
-	4,  // 62: omniql.BulkInsertRow.fields:type_name -> omniql.QueryField
-	6,  // 63: omniql.SetOperationClause.left_query:type_name -> omniql.RelationalQuery
-	6,  // 64: omniql.SetOperationClause.right_query:type_name -> omniql.RelationalQuery
-	65, // [65:65] is the sub-list for method output_type
-	65, // [65:65] is the sub-list for method input_type
-	65, // [65:65] is the sub-list for extension type_name
-	65, // [65:65] is the sub-list for extension extendee
-	0,  // [0:65] is the sub-list for field type_name
+	2,  // 49: omniql.KeyValueQuery.conditions:type_name -> omniql.QueryCondition
+	12, // 50: omniql.KeyValueQuery.order_by:type_name -> omniql.OrderByClause
+	1,  // 51: omniql.JoinClause.left_expr:type_name -> omniql.Expression
+	1,  // 52: omniql.JoinClause.right_expr:type_name -> omniql.Expression
+	1,  // 53: omniql.AggregateClause.field_expr:type_name -> omniql.Expression
+	1,  // 54: omniql.OrderByClause.field_expr:type_name -> omniql.Expression
+	1,  // 55: omniql.WindowClause.field_expr:type_name -> omniql.Expression
+	1,  // 56: omniql.WindowClause.partition_by:type_name -> omniql.Expression
+	12, // 57: omniql.WindowClause.order_by:type_name -> omniql.OrderByClause
+	6,  // 58: omniql.CTEClause.cte_query:type_name -> omniql.RelationalQuery
+	14, // 59: omniql.CTEClause.additional_ctes:type_name -> omniql.CTEClause
+	1,  // 60: omniql.SubqueryClause.field_expr:type_name -> omniql.Expression
+	6,  // 61: omniql.SubqueryClause.subquery:type_name -> omniql.RelationalQuery
+	1,  // 62: omniql.UpsertClause.conflict_fields:type_name -> omniql.Expression
+	4,  // 63: omniql.UpsertClause.update_fields:type_name -> omniql.QueryField
+	4,  // 64: omniql.BulkInsertRow.fields:type_name -> omniql.QueryField
+	6,  // 65: omniql.SetOperationClause.left_query:type_name -> omniql.RelationalQuery
+	6,  // 66: omniql.SetOperationClause.right_query:type_name -> omniql.RelationalQuery
+	67, // [67:67] is the sub-list for method output_type
+	67, // [67:67] is the sub-list for method input_type
+	67, // [67:67] is the sub-list for extension type_name
+	67, // [67:67] is the sub-list for extension extendee
+	0,  // [0:67] is the sub-list for field type_name
 }
 
 func init() { file_utilities_proto_events_proto_init() }

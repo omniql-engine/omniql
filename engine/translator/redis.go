@@ -93,9 +93,14 @@ func TranslateRedis(query *models.Query, tenantID string) (*pb.KeyValueQuery, er
 		}
 		
 		result := &pb.KeyValueQuery{
-			Command: command,
-			Key:     buildRedisKeyPattern(tenantID, query.Entity),
-			Args:    args,
+			Command:    command,
+			Key:        buildRedisKeyPattern(tenantID, query.Entity),
+			Args:       args,
+			Entity:     strings.ToLower(query.Entity),
+			Conditions: convertConditionsToProto(query.Conditions),
+			Limit:      int32(query.Limit),
+			Offset:     int32(query.Offset),
+			OrderBy:    convertOrderByToProto(query.OrderBy),
 		}
 		result.CommandString = buildRedisString(result)
 		return result, nil
@@ -107,6 +112,7 @@ func TranslateRedis(query *models.Query, tenantID string) (*pb.KeyValueQuery, er
 			Command: "DROP_TABLE",
 			Key:     buildRedisKeyPattern(tenantID, query.Entity),
 			Args:    []string{},
+			Entity:  strings.ToLower(query.Entity),
 		}
 		result.CommandString = buildRedisString(result)
 		return result, nil
@@ -140,9 +146,14 @@ func TranslateRedis(query *models.Query, tenantID string) (*pb.KeyValueQuery, er
 	}
 	
 	result := &pb.KeyValueQuery{
-		Command: command,
-		Key:     key,
-		Args:    args,
+		Command:    command,
+		Key:        key,
+		Args:       args,
+		Entity:     strings.ToLower(query.Entity),
+		Conditions: convertConditionsToProto(query.Conditions),
+		Limit:      int32(query.Limit),
+		Offset:     int32(query.Offset),
+		OrderBy:    convertOrderByToProto(query.OrderBy),
 	}
 	result.CommandString = buildRedisString(result)
 	return result, nil
@@ -188,24 +199,18 @@ func buildRedisKey(tenantID, entity string, conditions []models.Condition, field
 	
 	entityLower := strings.ToLower(entity)
 	
-	// Check conditions for id
-	for _, cond := range conditions {
-		fieldValue := getExprValue(cond.FieldExpr)
-		if strings.ToLower(fieldValue) == "id" {
-			condValue := getExprValue(cond.ValueExpr)
-			return fmt.Sprintf("tenant:%s:%s:%s", tenantID, entityLower, condValue)
-		}
+	// Case 1: Direct ID lookup (WHERE id = X)
+	if isDirectIdLookup(conditions) {
+		condValue := getExprValue(conditions[0].ValueExpr)
+		return fmt.Sprintf("tenant:%s:%s:%s", tenantID, entityLower, condValue)
 	}
 	
-	// Check if there's another field condition
+	// Case 2: Other conditions → return pattern for scanning
 	if len(conditions) > 0 {
-		cond := conditions[0]
-		fieldValue := getExprValue(cond.FieldExpr)
-		condValue := getExprValue(cond.ValueExpr)
-		return fmt.Sprintf("tenant:%s:%s:%s:%s", tenantID, entityLower, fieldValue, condValue)
+		return fmt.Sprintf("tenant:%s:%s:*", tenantID, entityLower)
 	}
 	
-	// Check if there's an id field
+	// Check if there's an id field (for CREATE)
 	for _, field := range fields {
 		nameValue := getExprValue(field.NameExpr)
 		if strings.ToLower(nameValue) == "id" {
@@ -219,7 +224,7 @@ func buildRedisKey(tenantID, entity string, conditions []models.Condition, field
 		return fmt.Sprintf("tenant:%s:%s:generated_%d", tenantID, entityLower, generateID())
 	}
 	
-	return fmt.Sprintf("tenant:%s:%s", tenantID, entityLower)
+	return fmt.Sprintf("tenant:%s:%s:*", tenantID, entityLower)
 }
 
 var idCounter int
@@ -543,4 +548,71 @@ func buildRedisString(query *pb.KeyValueQuery) string {
 	}
 	
 	return strings.Join(parts, " ")
+}
+
+// convertConditionsToProto converts models.Condition to proto QueryCondition
+func convertConditionsToProto(conditions []models.Condition) []*pb.QueryCondition {
+	var result []*pb.QueryCondition
+	for _, cond := range conditions {
+		pc := &pb.QueryCondition{
+			Operator: cond.Operator,
+			Logic:    cond.Logic,
+		}
+		if cond.FieldExpr != nil {
+			pc.FieldExpr = convertExprToProto(cond.FieldExpr)
+		}
+		if cond.ValueExpr != nil {
+			pc.ValueExpr = convertExprToProto(cond.ValueExpr)
+		}
+		if cond.Value2Expr != nil {
+			pc.Value2Expr = convertExprToProto(cond.Value2Expr)
+		}
+		for _, v := range cond.ValuesExpr {
+			pc.ValuesExpr = append(pc.ValuesExpr, convertExprToProto(v))
+		}
+		if len(cond.Nested) > 0 {
+			pc.Nested = convertConditionsToProto(cond.Nested)
+		}
+		result = append(result, pc)
+	}
+	return result
+}
+
+// convertExprToProto converts models.Expression to proto Expression
+func convertExprToProto(expr *models.Expression) *pb.Expression {
+	if expr == nil {
+		return nil
+	}
+	return &pb.Expression{
+		Type:  expr.Type,
+		Value: expr.Value,
+	}
+}
+
+// convertOrderByToProto converts models.OrderBy to proto OrderByClause
+func convertOrderByToProto(orderBy []models.OrderBy) []*pb.OrderByClause {
+	var result []*pb.OrderByClause
+	for _, ob := range orderBy {
+		poc := &pb.OrderByClause{
+			Direction: string(ob.Direction),
+		}
+		if ob.FieldExpr != nil {
+			poc.FieldExpr = &pb.Expression{
+				Type:  ob.FieldExpr.Type,
+				Value: ob.FieldExpr.Value,
+			}
+		}
+		result = append(result, poc)
+	}
+	return result
+}
+
+// isDirectIdLookup checks if conditions are just "id = X"
+func isDirectIdLookup(conditions []models.Condition) bool {
+	if len(conditions) != 1 {
+		return false
+	}
+	cond := conditions[0]
+	fieldValue := getExprValue(cond.FieldExpr)
+	return strings.ToLower(fieldValue) == "id" && cond.Operator == "="
 }

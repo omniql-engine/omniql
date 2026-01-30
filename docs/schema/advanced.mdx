@@ -1,0 +1,65 @@
+---
+title: Advanced Schema
+description: "Column constraints"
+---
+
+## Column Constraints
+
+OmniQL supports three column constraints using colon syntax:
+```sql
+:CREATE TABLE User WITH
+  id:AUTO,
+  email:STRING:NOTNULL:UNIQUE,
+  name:STRING:NOTNULL
+```
+
+| Constraint | Syntax | Effect |
+|------------|--------|--------|
+| Not Null | `:NOTNULL` | Column cannot be NULL |
+| Unique | `:UNIQUE` | Values must be unique |
+| Primary Key | `:PRIMARYKEY` | Column is primary key |
+
+### Multiple Constraints
+
+Chain multiple constraints with colons:
+```sql
+:CREATE TABLE Product WITH
+  id:AUTO,
+  sku:STRING:NOTNULL:UNIQUE,
+  name:STRING:NOTNULL,
+  price:DECIMAL
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE TABLE products (id SERIAL PRIMARY KEY, sku VARCHAR NOT NULL UNIQUE, name VARCHAR NOT NULL, price DECIMAL)` |
+| MySQL | `CREATE TABLE products (id INT AUTO_INCREMENT PRIMARY KEY, sku VARCHAR(255) NOT NULL UNIQUE, name VARCHAR(255) NOT NULL, price DECIMAL)` |
+
+## Database-Specific Features
+
+For advanced features like sequences, custom types, triggers, and stored procedures, see database-specific documentation:
+
+- [PostgreSQL Features](/databases/postgresql) - Sequences, ENUM types, domains, triggers, policies
+- [MySQL Features](/databases/mysql)
+- [MongoDB Features](/databases/mongodb)
+- [Redis Features](/databases/redis)
+
+## Limitations
+
+Not supported in OmniQL (use native SQL):
+- CHECK constraints
+- Foreign key references (REFERENCES)
+- ON DELETE / ON UPDATE actions
+- DEFAULT values
+- Composite primary keys
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL" icon="database" href="/databases/postgresql">
+    PostgreSQL-specific features
+  </Card>
+  <Card title="Transactions" icon="arrows-rotate" href="/control/transactions">
+    Group operations safely
+  </Card>
+</CardGroup>

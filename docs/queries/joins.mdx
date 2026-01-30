@@ -1,0 +1,95 @@
+---
+title: Joins
+description: "Combine data from multiple tables"
+---
+
+Combine data from multiple tables using JOIN operations.
+
+## Basic Syntax
+```sql
+:INNER JOIN Entity1 Entity2 ON field1 = field2
+:LEFT JOIN Entity1 Entity2 ON field1 = field2
+:RIGHT JOIN Entity1 Entity2 ON field1 = field2
+:FULL JOIN Entity1 Entity2 ON field1 = field2
+:CROSS JOIN Entity1 Entity2
+```
+
+## Inner Join
+
+Returns only matching rows from both tables.
+```sql
+:INNER JOIN Order User ON user_id = id
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM orders INNER JOIN users ON user_id = id` |
+| MySQL | `SELECT * FROM orders INNER JOIN users ON user_id = id` |
+| MongoDB | `db.orders.aggregate([{ $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } }])` |
+
+## Left Join
+
+Returns all rows from the first table, matched rows from second.
+```sql
+:LEFT JOIN User Order ON id = user_id
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users LEFT JOIN orders ON id = user_id` |
+| MongoDB | `db.users.aggregate([{ $lookup: { from: 'orders', localField: '_id', foreignField: 'user_id', as: 'orders' } }])` |
+
+## Right Join
+
+Returns all rows from the second table, matched rows from first.
+```sql
+:RIGHT JOIN Order User ON user_id = id
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM orders RIGHT JOIN users ON user_id = id` |
+
+## Full Join
+
+Returns all rows from both tables.
+```sql
+:FULL JOIN Order User ON user_id = id
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM orders FULL JOIN users ON user_id = id` |
+
+## Cross Join
+
+Returns Cartesian product of both tables (no ON clause needed).
+```sql
+:CROSS JOIN Product Category
+```
+
+## MongoDB Note
+
+MongoDB uses `$lookup` aggregation for joins. OmniQL automatically translates JOIN syntax to the appropriate aggregation pipeline.
+
+## Limitations
+
+Current JOIN implementation has these constraints:
+
+- One JOIN per query (no chained joins)
+- No table aliases
+- No column selection within JOIN queries
+- Field names only (no `Table.field` notation)
+
+For complex multi-table queries, consider using multiple queries or your database driver directly.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Grouping" icon="layer-group" href="/queries/grouping">
+    Aggregate with GROUP BY
+  </Card>
+  <Card title="Window Functions" icon="chart-line" href="/queries/window-functions">
+    Advanced analytics
+  </Card>
+</CardGroup>

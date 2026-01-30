@@ -95,6 +95,7 @@ func (p *Parser) parseWhereClause(node *ast.QueryNode) error {
 }
 
 // parseOrderByClause parses: ORDER BY field [ASC|DESC], ... (100% TrueAST)
+// parseOrderByClause parses: ORDER BY expr [ASC|DESC], ... (100% TrueAST)
 func (p *Parser) parseOrderByClause(node *ast.QueryNode) error {
 	cur := strings.ToUpper(p.current().Value)
 	p.advance() // consume ORDER BY (or just ORDER)
@@ -117,45 +118,46 @@ func (p *Parser) parseOrderByClause(node *ast.QueryNode) error {
 			break
 		}
 
-		// Parse field as expression (100% TrueAST)
 		fieldTok := p.current()
-		field, err := p.expectIdentifier()
-		if err != nil {
-			return err
-		}
 
-		order := ast.OrderByNode{
-			Direction: "ASC", // default
-			Position:  fieldTok.Position,
-		}
-
-		// Handle colon syntax: field:ASC or field:DESC
-		if strings.Contains(field, ":") {
+		// Check for colon syntax first: field:ASC or field:DESC
+		if p.current().Type == lexer.TOKEN_IDENTIFIER && strings.Contains(p.current().Value, ":") {
+			field := p.advance().Value
 			parts := strings.SplitN(field, ":", 2)
-			order.FieldExpr = &ast.ExpressionNode{
-				Type:     "FIELD",
-				Value:    parts[0],
-				Position: fieldTok.Position,
+			order := ast.OrderByNode{
+				Direction: "ASC",
+				Position:  fieldTok.Position,
+				FieldExpr: &ast.ExpressionNode{
+					Type:     "FIELD",
+					Value:    parts[0],
+					Position: fieldTok.Position,
+				},
 			}
 			if strings.ToUpper(parts[1]) == "DESC" {
 				order.Direction = "DESC"
-			} else if strings.ToUpper(parts[1]) == "ASC" {
-				order.Direction = "ASC"
 			}
+			node.OrderBy = append(node.OrderBy, order)
 		} else {
-			order.FieldExpr = &ast.ExpressionNode{
-				Type:     "FIELD",
-				Value:    field,
-				Position: fieldTok.Position,
+			// Parse expression (supports: field, price * quantity, UPPER(name), etc.)
+			expr, err := p.parseAdditive()
+			if err != nil {
+				return err
 			}
+
+			order := ast.OrderByNode{
+				Direction: "ASC",
+				Position:  fieldTok.Position,
+				FieldExpr: expr,
+			}
+
 			if p.match("ASC") {
 				order.Direction = "ASC"
 			} else if p.match("DESC") {
 				order.Direction = "DESC"
 			}
-		}
 
-		node.OrderBy = append(node.OrderBy, order)
+			node.OrderBy = append(node.OrderBy, order)
+		}
 
 		if !p.match(",") {
 			break
@@ -608,3 +610,4 @@ func (p *Parser) parseSelectExpression() (*ast.ExpressionNode, error) {
 	// It stops at non-arithmetic tokens naturally
 	return p.parseAdditive()
 }
+

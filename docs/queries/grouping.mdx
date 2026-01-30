@@ -1,0 +1,123 @@
+---
+title: Grouping
+description: "Aggregate data with GROUP BY"
+---
+
+Aggregate data using GROUP BY with aggregate functions.
+
+## Basic Syntax
+```sql
+:COUNT * FROM Entity GROUP BY field
+:SUM field FROM Entity GROUP BY field
+:AVG field FROM Entity GROUP BY field
+```
+
+## Aggregate Functions
+
+| Function | Description |
+|----------|-------------|
+| `COUNT(*)` | Count rows |
+| `SUM(column)` | Sum values |
+| `AVG(column)` | Average value |
+| `MIN(column)` | Minimum value |
+| `MAX(column)` | Maximum value |
+
+## Count by Group
+```sql
+:COUNT * FROM User GROUP BY status
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT status, COUNT(*) FROM users GROUP BY status` |
+| MongoDB | `db.users.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }])` |
+
+## Sum by Group
+```sql
+:SUM amount FROM Order GROUP BY status
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT status, SUM(amount) FROM orders GROUP BY status` |
+| MongoDB | `db.orders.aggregate([{ $group: { _id: '$status', total: { $sum: '$amount' } } }])` |
+
+## Average by Group
+```sql
+:AVG price FROM Product GROUP BY category
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT category, AVG(price) FROM products GROUP BY category` |
+
+## Min/Max by Group
+```sql
+:MIN price FROM Product GROUP BY category
+:MAX price FROM Product GROUP BY category
+```
+
+## Multiple Columns with GET WITH
+
+For multiple columns with aggregates (except COUNT):
+```sql
+:GET Order WITH status, SUM(amount) AS total GROUP BY status
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT status, SUM(amount) AS total FROM orders GROUP BY status` |
+
+## Group by Multiple Columns
+```sql
+:SUM amount FROM Order GROUP BY status, user_id
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT status, user_id, SUM(amount) FROM orders GROUP BY status, user_id` |
+
+## HAVING Clause
+
+Filter groups after aggregation.
+```sql
+:COUNT * FROM User GROUP BY status HAVING COUNT(*) > 10
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT status, COUNT(*) FROM users GROUP BY status HAVING COUNT(*) > 10` |
+
+## WHERE vs HAVING
+
+- `WHERE` filters rows before grouping
+- `HAVING` filters groups after aggregation
+```sql
+:SUM amount FROM Order WHERE created_at > "2024-01-01" GROUP BY status HAVING SUM(amount) > 1000
+```
+
+## With ORDER BY
+```sql
+:COUNT * FROM Product GROUP BY category ORDER BY count DESC
+```
+
+## Complete Example
+```sql
+:SUM amount FROM Order 
+  WHERE created_at BETWEEN "2024-01-01" AND "2024-12-31"
+  GROUP BY status
+  HAVING SUM(amount) >= 500
+  ORDER BY sum DESC
+  LIMIT 100
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Window Functions" icon="chart-line" href="/queries/window-functions">
+    Advanced analytics
+  </Card>
+  <Card title="Insert Data" icon="plus" href="/mutations/insert">
+    Create new records
+  </Card>
+</CardGroup>

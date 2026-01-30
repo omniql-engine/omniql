@@ -1,0 +1,179 @@
+---
+title: Transactions
+description: "Group operations with ACID guarantees"
+---
+
+Group multiple operations into atomic units.
+
+## Basic Syntax
+```sql
+:BEGIN
+:COMMIT
+:ROLLBACK
+```
+
+## Simple Transaction
+```sql
+:BEGIN
+
+:UPDATE Account SET balance = balance - 100 WHERE id = 1
+:UPDATE Account SET balance = balance + 100 WHERE id = 2
+
+:COMMIT
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `BEGIN; UPDATE accounts SET balance = balance - 100 WHERE id = 1; UPDATE accounts SET balance = balance + 100 WHERE id = 2; COMMIT;` |
+| MySQL | `START TRANSACTION; UPDATE accounts SET balance = balance - 100 WHERE id = 1; UPDATE accounts SET balance = balance + 100 WHERE id = 2; COMMIT;` |
+
+## Rollback
+
+Undo all changes in the transaction.
+```sql
+:BEGIN
+
+:UPDATE Account SET balance = balance - 100 WHERE id = 1
+:UPDATE Account SET balance = balance + 100 WHERE id = 2
+
+:ROLLBACK
+```
+
+## Savepoints
+
+Create checkpoints within a transaction.
+```sql
+:BEGIN
+
+:INSERT Order WITH user_id = 1, total = 99.99
+:SAVEPOINT order_created
+
+:INSERT OrderItem WITH order_id = 1, product_id = 5, quantity = 2
+:INSERT OrderItem WITH order_id = 1, product_id = 8, quantity = 1
+
+:COMMIT
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `BEGIN; INSERT INTO orders ...; SAVEPOINT order_created; INSERT INTO order_items ...; COMMIT;` |
+
+### Rollback to Savepoint
+
+Undo changes back to a savepoint.
+```sql
+:ROLLBACK TO order_created
+```
+
+### Release Savepoint
+
+Remove a savepoint (keep the changes).
+```sql
+:RELEASE SAVEPOINT order_created
+```
+
+## Isolation Levels
+
+Control how transactions see each other's changes. Set isolation level before BEGIN.
+```sql
+:SET TRANSACTION ISOLATION LEVEL SERIALIZABLE
+:BEGIN
+
+:GET Product WHERE id = 1
+:UPDATE Product SET quantity = quantity - 1 WHERE id = 1
+
+:COMMIT
+```
+
+| Level | Description |
+|-------|-------------|
+| `READ UNCOMMITTED` | Can see uncommitted changes from other transactions |
+| `READ COMMITTED` | Only sees committed changes (PostgreSQL default) |
+| `REPEATABLE READ` | Consistent reads within transaction (MySQL default) |
+| `SERIALIZABLE` | Full isolation, transactions appear sequential |
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; BEGIN; ...` |
+| MySQL | `SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; START TRANSACTION; ...` |
+
+## Complete Examples
+
+### Money Transfer
+```sql
+:BEGIN
+
+:UPDATE Account SET balance = balance - 500 WHERE id = 1 AND balance >= 500
+:UPDATE Account SET balance = balance + 500 WHERE id = 2
+
+:INSERT TransactionLog WITH from_account = 1, to_account = 2, amount = 500
+
+:COMMIT
+```
+
+### Order with Savepoint
+```sql
+:BEGIN
+
+:INSERT Order WITH user_id = 42, status = "pending", total = 0
+:SAVEPOINT order_created
+
+:INSERT OrderItem WITH order_id = 1, product_id = 5, quantity = 2, price = 29.99
+:INSERT OrderItem WITH order_id = 1, product_id = 8, quantity = 1, price = 49.99
+
+:UPDATE Order SET total = 109.97 WHERE id = 1
+:UPDATE Product SET quantity = quantity - 2 WHERE id = 5
+:UPDATE Product SET quantity = quantity - 1 WHERE id = 8
+
+:COMMIT
+```
+
+### High Isolation Transaction
+```sql
+:SET TRANSACTION ISOLATION LEVEL SERIALIZABLE
+:BEGIN
+
+:GET Account WHERE id = 1
+:UPDATE Account SET balance = balance - 100 WHERE id = 1
+
+:COMMIT
+```
+
+## Database Support
+
+| Feature | PostgreSQL | MySQL | MongoDB |
+|---------|------------|-------|---------|
+| BEGIN/COMMIT/ROLLBACK | Yes | Yes | Yes (sessions) |
+| SAVEPOINT | Yes | Yes | No |
+| ROLLBACK TO | Yes | Yes | No |
+| RELEASE SAVEPOINT | Yes | Yes | No |
+| Isolation Levels | Yes | Yes | Yes (read concern) |
+
+## MongoDB Note
+
+MongoDB supports multi-document transactions in replica sets and sharded clusters (v4.0+). Savepoints are not supported.
+```javascript
+// MongoDB equivalent
+session.startTransaction();
+db.accounts.updateOne({ _id: 1 }, { $inc: { balance: -100 } });
+db.accounts.updateOne({ _id: 2 }, { $inc: { balance: 100 } });
+session.commitTransaction();
+```
+
+## Limitations
+
+Not currently supported:
+- BEGIN READ ONLY
+- Inline isolation level (BEGIN ISOLATION LEVEL X)
+- Nested transactions
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Permissions" icon="lock" href="/control/permissions">
+    Control access
+  </Card>
+  <Card title="PostgreSQL" icon="database" href="/databases/postgresql">
+    PostgreSQL specifics
+  </Card>
+</CardGroup>

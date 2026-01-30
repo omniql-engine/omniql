@@ -1,0 +1,92 @@
+---
+title: "Syntax Basics"
+description: "Understanding the : prefix and syntax rules"
+---
+
+# The : Prefix
+
+All OmniQL queries start with a colon (`:`).
+```sql
+:GET User WHERE id = 1
+```
+
+## Why the Prefix?
+
+OmniQL and native SQL share many keywords (`CREATE`, `UPDATE`, `SELECT`). The prefix acts as a switch, telling the system exactly how to handle the string.
+
+| Query | Behavior |
+|-------|----------|
+| `:GET User...` | ✅ Parsed and translated to target DB |
+| `SELECT * ...` | ❌ Error - missing `:` prefix |
+
+All queries must use OmniQL syntax. For native database commands, use your database driver directly.
+
+## Parser Behavior
+
+The `oql.Parse()` function uses this prefix to determine if it should engage the compiler.
+```go
+import "github.com/omniql-engine/omniql"
+
+// 1. OmniQL Query (Starts with :)
+query, isOQL, err := oql.Parse(":GET User WHERE id = 1")
+// isOQL = true
+// query = *models.Query (AST)
+
+// 2. Query without prefix = Error
+query, isOQL, err := oql.Parse("SELECT * FROM users")
+// isOQL = false
+// client.Query() will return error: "OmniQL syntax required"
+```
+
+## Syntax Pattern
+
+An OmniQL command follows this structure:
+```
+:OPERATION Entity [clauses]
+```
+
+| Part | Description | Example |
+|------|-------------|---------|
+| `:` | Required Prefix | `:` |
+| `OPERATION` | Action to perform | `GET`, `CREATE`, `UPDATE`, `DELETE` |
+| `Entity` | Target Table/Collection | `User`, `Product`, `Order` |
+| `[clauses]` | Optional modifiers | `WHERE`, `ORDER BY`, `LIMIT` |
+
+## Entity Naming
+
+OmniQL uses PascalCase entity names. The translator automatically lowercases and pluralizes them:
+
+| You Write | Output |
+|-----------|--------|
+| `User` | `users` |
+| `Product` | `products` |
+| `OrderItem` | `orderitems` |
+
+> **Note:** The engine lowercases then pluralizes. It does not add underscores (snake_case).
+
+## Examples
+```sql
+-- Queries
+:GET User WHERE age > 21
+:GET id, name, price FROM Product WHERE active = true
+
+-- Mutations
+:CREATE User WITH name:"John", age:30
+:UPDATE User SET verified:true WHERE id = 1
+:DELETE User WHERE status = "inactive"
+
+-- Schema DDL
+:CREATE TABLE User WITH id:AUTO, name:STRING, email:STRING
+:CREATE INDEX idx_email ON User (email)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get running in 5 minutes
+  </Card>
+  <Card title="Filtering" icon="filter" href="/queries/filtering">
+    Learn WHERE clauses and operators
+  </Card>
+</CardGroup>

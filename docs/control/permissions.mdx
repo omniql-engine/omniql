@@ -1,0 +1,239 @@
+---
+title: Permissions
+description: "Control access with GRANT and REVOKE"
+---
+
+Control database access using DCL (Data Control Language) operations.
+
+## Grant Permissions
+```sql
+:GRANT permission ON Entity TO user
+```
+
+### Read Permission
+```sql
+:GRANT READ ON User TO analyst
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `GRANT SELECT ON users TO analyst` |
+| MySQL | `GRANT SELECT ON users.* TO 'analyst'@'localhost'` |
+
+### Write Permission
+```sql
+:GRANT WRITE ON Order TO sales_app
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `GRANT INSERT, UPDATE ON orders TO sales_app` |
+
+### Delete Permission
+```sql
+:GRANT DELETE ON Log TO admin
+```
+
+### All Permissions
+```sql
+:GRANT ALL ON User TO admin
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `GRANT ALL PRIVILEGES ON users TO admin` |
+
+### Multiple Permissions
+```sql
+:GRANT READ, WRITE, DELETE ON Order TO app_service
+```
+
+### All Tables
+```sql
+:GRANT READ ON * TO analyst
+```
+
+## Revoke Permissions
+```sql
+:REVOKE permission ON Entity FROM user
+```
+
+### Single Permission
+```sql
+:REVOKE DELETE ON User FROM intern
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `REVOKE DELETE ON users FROM intern` |
+
+### All Permissions
+```sql
+:REVOKE ALL ON User FROM former_employee
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `REVOKE ALL PRIVILEGES ON users FROM former_employee` |
+
+## User Management
+
+### Create User
+```sql
+:CREATE USER john WITH PASSWORD secret123
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE USER john WITH PASSWORD 'secret123'` |
+| MySQL | `CREATE USER IF NOT EXISTS 'john'@'localhost' IDENTIFIED BY 'secret123'` |
+
+### Alter User Password
+```sql
+:ALTER USER john WITH PASSWORD newsecret456
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `ALTER USER john WITH PASSWORD 'newsecret456'` |
+| MySQL | `ALTER USER 'john'@'localhost' IDENTIFIED BY 'newsecret456'` |
+
+### Drop User
+```sql
+:DROP USER john
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DROP USER IF EXISTS john` |
+| MySQL | `DROP USER IF EXISTS 'john'@'localhost'` |
+
+## Role Management
+
+### Create Role
+```sql
+:CREATE ROLE analyst
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `CREATE ROLE analyst` |
+| MySQL | `CREATE ROLE IF NOT EXISTS analyst` |
+
+### Assign Role to User
+```sql
+:ASSIGN ROLE analyst TO john
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `GRANT analyst TO john` |
+| MySQL | `GRANT 'analyst' TO 'john'@'localhost'` |
+
+### Revoke Role from User
+```sql
+:REVOKE ROLE analyst FROM john
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `REVOKE analyst FROM john` |
+| MySQL | `REVOKE 'analyst' FROM 'john'@'localhost'` |
+
+### Drop Role
+```sql
+:DROP ROLE analyst
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `DROP ROLE IF EXISTS analyst` |
+| MySQL | `DROP ROLE IF EXISTS analyst` |
+
+## Permission Types
+
+| OmniQL | PostgreSQL | MySQL | Description |
+|--------|------------|-------|-------------|
+| `READ` | `SELECT` | `SELECT` | Read data |
+| `WRITE` | `INSERT, UPDATE` | `INSERT, UPDATE` | Create and modify |
+| `DELETE` | `DELETE` | `DELETE` | Remove records |
+| `ALL` | `ALL PRIVILEGES` | `ALL PRIVILEGES` | Full access |
+
+You can also use native permission names (SELECT, INSERT, UPDATE) directly.
+
+## Complete Examples
+
+### Read-Only Analyst
+```sql
+:CREATE ROLE analyst
+:GRANT READ ON User TO analyst
+:GRANT READ ON Order TO analyst
+:GRANT READ ON Product TO analyst
+
+:CREATE USER jane WITH PASSWORD analyst123
+:ASSIGN ROLE analyst TO jane
+```
+
+### Application Service Account
+```sql
+:CREATE ROLE app_service
+:GRANT READ, WRITE ON User TO app_service
+:GRANT READ, WRITE ON Order TO app_service
+:GRANT READ, WRITE ON Product TO app_service
+
+:CREATE USER myapp WITH PASSWORD service456
+:ASSIGN ROLE app_service TO myapp
+```
+
+### Admin User
+```sql
+:CREATE ROLE admin
+:GRANT ALL ON User TO admin
+:GRANT ALL ON Order TO admin
+:GRANT ALL ON Product TO admin
+
+:CREATE USER bob WITH PASSWORD admin789
+:ASSIGN ROLE admin TO bob
+```
+
+## Database Support
+
+| Feature | PostgreSQL | MySQL | MongoDB |
+|---------|------------|-------|---------|
+| GRANT/REVOKE | Yes | Yes | Via commands |
+| CREATE/DROP USER | Yes | Yes | Via commands |
+| ALTER USER | Yes | Yes | Via commands |
+| CREATE/DROP ROLE | Yes | Yes | Via commands |
+| ASSIGN/REVOKE ROLE | Yes | Yes | Via commands |
+
+## MongoDB Note
+
+MongoDB uses role-based access control with built-in roles. OmniQL translates to MongoDB admin commands.
+```javascript
+// MongoDB equivalent for CREATE USER
+db.createUser({
+  user: "analyst",
+  pwd: "secret",
+  roles: [{ role: "read", db: "myapp" }]
+});
+```
+
+## Limitations
+
+Not currently supported:
+- Column-level permissions
+- Schema/database-level permissions
+- Sequence permissions
+- Role options (SUPERUSER, LOGIN, etc.)
+- Multiple tables in single GRANT
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transactions" icon="arrows-rotate" href="/control/transactions">
+    Group operations safely
+  </Card>
+  <Card title="PostgreSQL" icon="database" href="/databases/postgresql">
+    PostgreSQL specifics
+  </Card>
+</CardGroup>

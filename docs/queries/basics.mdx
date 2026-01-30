@@ -1,0 +1,126 @@
+---
+title: Query Basics
+description: "Read data with GET operations"
+---
+
+The `GET` operation retrieves data from a table.
+
+## Basic Syntax
+```sql
+:GET Entity
+:GET Entity WHERE conditions
+:GET field1, field2 FROM Entity
+:GET field1, field2 FROM Entity WHERE conditions
+```
+
+## Get All Records
+```sql
+:GET User
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users` |
+| MySQL | `SELECT * FROM users` |
+| MongoDB | `db.users.find({})` |
+
+## Select Specific Columns
+```sql
+:GET id, name, email FROM User
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT id, name, email FROM users` |
+| MySQL | `SELECT id, name, email FROM users` |
+| MongoDB | `db.users.find({}, { id: 1, name: 1, email: 1 })` |
+
+## Simple WHERE Clause
+```sql
+:GET User WHERE id = 1
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE id = 1` |
+| MySQL | `SELECT * FROM users WHERE id = 1` |
+| MongoDB | `db.users.find({ id: 1 })` |
+
+## Multiple Conditions
+```sql
+:GET User WHERE age > 21 AND status = "active"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users WHERE age > 21 AND status = 'active'` |
+| MongoDB | `db.users.find({ age: { $gt: 21 }, status: 'active' })` |
+
+## Combine Columns and Conditions
+```sql
+:GET id, name FROM User WHERE active = true
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT id, name FROM users WHERE active = true` |
+| MongoDB | `db.users.find({ active: true }, { id: 1, name: 1 })` |
+
+## Limit Results
+```sql
+:GET User LIMIT 10
+:GET User WHERE active = true LIMIT 5
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users LIMIT 10` |
+| MySQL | `SELECT * FROM users LIMIT 10` |
+| MongoDB | `db.users.find({}).limit(10)` |
+
+## Skip Results (Pagination)
+```sql
+:GET User LIMIT 10 OFFSET 20
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT * FROM users LIMIT 10 OFFSET 20` |
+| MongoDB | `db.users.find({}).skip(20).limit(10)` |
+
+
+## Standalone Aggregates
+
+Aggregates can also be used as standalone operations:
+```sql
+:COUNT * FROM User
+:COUNT * FROM User WHERE active = true
+:SUM amount FROM Order WHERE status = "completed"
+:AVG price FROM Product
+:MIN created_at FROM User
+:MAX total FROM Order
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `SELECT COUNT(*) FROM users` |
+| PostgreSQL | `SELECT SUM(amount) FROM orders WHERE status = 'completed'` |
+
+## DISTINCT
+
+Get unique values:
+```sql
+:GET User DISTINCT
+:GET role FROM User DISTINCT
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Filtering" icon="filter" href="/queries/filtering">
+    Advanced WHERE conditions
+  </Card>
+  <Card title="Sorting" icon="arrow-up-arrow-down" href="/queries/sorting">
+    ORDER BY operations
+  </Card>
+</CardGroup>

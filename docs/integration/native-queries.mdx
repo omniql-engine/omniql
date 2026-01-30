@@ -1,0 +1,74 @@
+---
+title: Native Queries
+description: "Using native database drivers alongside OmniQL"
+---
+
+# Native Queries
+
+OmniQL requires the `:` prefix for all queries. If you need to execute native database commands directly, use your driver alongside OmniQL.
+
+## Pattern
+
+OmniQL wraps your connection but doesn't replace it. Keep both references.
+```go
+// Keep both
+db, _ := sql.Open("postgres", connString)  // Native driver
+client := oql.WrapSQL(db, "PostgreSQL")    // OmniQL wrapper
+
+// OmniQL
+users, _ := client.Query(":GET User WHERE active = true")
+
+// Native
+rows, _ := db.Query("SELECT * FROM users WHERE active = true")
+```
+
+## PostgreSQL / MySQL
+```go
+db, _ := sql.Open("postgres", "postgres://localhost/mydb")
+client := oql.WrapSQL(db, "PostgreSQL")
+
+// OmniQL
+client.Query(":GET User WHERE age > 21")
+
+// Native
+db.Query("SELECT * FROM users WHERE age > 21")
+db.Exec("VACUUM ANALYZE users")
+```
+
+## MongoDB
+```go
+mongoClient, _ := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+db := mongoClient.Database("mydb")
+client := oql.WrapMongo(db)
+
+// OmniQL
+client.Query(":GET User WHERE age > 21")
+
+// Native
+db.Collection("users").Find(ctx, bson.M{"age": bson.M{"$gt": 21}})
+db.RunCommand(ctx, bson.D{{"ping", 1}})
+```
+
+## Redis
+```go
+rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+client := oql.WrapRedis(rdb, "")
+
+// OmniQL
+client.Query(":GET User WHERE id = 42")
+
+// Native
+rdb.HGetAll(ctx, "user:42")
+rdb.Ping(ctx)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Go Package" icon="code" href="/integration/go-package">
+    Full OmniQL API reference
+  </Card>
+  <Card title="Query Basics" icon="magnifying-glass" href="/queries/basics">
+    Learn OmniQL syntax
+  </Card>
+</CardGroup>

@@ -6,6 +6,7 @@ import (
 	"github.com/omniql-engine/omniql/engine/ast"
 )
 
+
 // =============================================================================
 // DDL DISPATCHER
 // =============================================================================
@@ -92,10 +93,10 @@ func (p *Parser) parseDDL(op string) (*ast.QueryNode, error) {
 }
 
 // =============================================================================
-// DDL PARSERS - Grammar: OPERATION keyword* identifier ...
+// DDL PARSERS
 // =============================================================================
 
-// CREATE TABLE [keywords] name WITH columns
+// CREATE TABLE name WITH columns
 func (p *Parser) parseCreateTable() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "CREATE TABLE",
@@ -103,17 +104,12 @@ func (p *Parser) parseCreateTable() (*ast.QueryNode, error) {
 	}
 	p.advance() // consume CREATE TABLE
 
-	// Grammar: skip any keywords until identifier
-	p.skipKeywords()
-
-	// Now at identifier = table name
 	entity, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
 	}
 	node.Entity = entity
 
-	// WITH columns
 	if err := p.expect("WITH"); err != nil {
 		return nil, err
 	}
@@ -127,7 +123,7 @@ func (p *Parser) parseCreateTable() (*ast.QueryNode, error) {
 	return node, nil
 }
 
-// DROP TABLE [keywords] name
+// DROP TABLE name [CASCADE]
 func (p *Parser) parseDropTable() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "DROP TABLE",
@@ -135,15 +131,16 @@ func (p *Parser) parseDropTable() (*ast.QueryNode, error) {
 	}
 	p.advance() // consume DROP TABLE
 
-	// Grammar: skip any keywords until identifier
-	p.skipKeywords()
-
-	// Now at identifier = table name
 	entity, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
 	}
 	node.Entity = entity
+
+	if !p.isAtEnd() && strings.ToUpper(p.current().Value) == "CASCADE" {
+		p.advance()
+		node.Cascade = true
+	}
 
 	return node, nil
 }
@@ -184,15 +181,25 @@ func (p *Parser) parseAlterTable() (*ast.QueryNode, error) {
 
 		switch action {
 		case "ADD":
-			node.AlterAction = "ADD_COLUMN"
-			if len(parts) < 2 {
-				return nil, p.error("ADD requires column:type")
+		node.AlterAction = "ADD_COLUMN"
+		if len(parts) < 2 {
+			return nil, p.error("ADD requires column:type")
+		}
+		typ := parts[1]
+		if p.match("(") {
+			var sizeParts []string
+			for !p.isAtEnd() && p.current().Value != ")" {
+				sizeParts = append(sizeParts, p.advance().Value)
+				p.match(",")
 			}
-			node.Fields = append(node.Fields, ast.FieldNode{
-				NameExpr:  makeFieldExpr(parts[0], pos),
-				ValueExpr: makeLiteralExpr(parts[1], pos),
-				Position:  pos,
-			})
+			p.expect(")")
+			typ = typ + "(" + strings.Join(sizeParts, ",") + ")"
+		}
+		node.Fields = append(node.Fields, ast.FieldNode{
+			NameExpr:  makeFieldExpr(parts[0], pos),
+			ValueExpr: makeLiteralExpr(typ, pos),
+			Position:  pos,
+		})
 		case "DROP":
 			node.AlterAction = "DROP_COLUMN"
 			node.Fields = append(node.Fields, ast.FieldNode{
@@ -236,9 +243,19 @@ func (p *Parser) parseAlterTable() (*ast.QueryNode, error) {
 		if len(parts) < 3 {
 			return nil, p.error("ADD_COLUMN requires column:type")
 		}
+		typ := parts[2]
+		if p.match("(") {
+			var sizeParts []string
+			for !p.isAtEnd() && p.current().Value != ")" {
+				sizeParts = append(sizeParts, p.advance().Value)
+				p.match(",")
+			}
+			p.expect(")")
+			typ = typ + "(" + strings.Join(sizeParts, ",") + ")"
+		}
 		node.Fields = append(node.Fields, ast.FieldNode{
 			NameExpr:  makeFieldExpr(parts[1], pos),
-			ValueExpr: makeLiteralExpr(parts[2], pos),
+			ValueExpr: makeLiteralExpr(typ, pos),
 			Position:  pos,
 		})
 
@@ -287,7 +304,6 @@ func (p *Parser) parseTruncate() (*ast.QueryNode, error) {
 	}
 	p.advance() // consume TRUNCATE [TABLE]
 
-	// Don't use skipKeywords - just get entity directly
 	entity, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
@@ -297,8 +313,7 @@ func (p *Parser) parseTruncate() (*ast.QueryNode, error) {
 	return node, nil
 }
 
-// CREATE INDEX [keywords] table index_name:column [UNIQUE]
-// Format: CREATE INDEX products idx_product_name:product_name UNIQUE
+// CREATE INDEX table index_name:column [UNIQUE]
 func (p *Parser) parseCreateIndex() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "CREATE INDEX",
@@ -306,15 +321,12 @@ func (p *Parser) parseCreateIndex() (*ast.QueryNode, error) {
 	}
 	p.advance() // consume CREATE INDEX
 
-	// Don't use skipKeywords() - it eats the table name
-	// Just get table name directly
 	entity, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
 	}
 	node.Entity = entity
 
-	// Index name:column (as single token with colon)
 	if p.isAtEnd() {
 		return nil, p.error("expected index_name:column")
 	}
@@ -333,7 +345,6 @@ func (p *Parser) parseCreateIndex() (*ast.QueryNode, error) {
 		Position:  pos,
 	}
 
-	// Check for UNIQUE modifier
 	if !p.isAtEnd() && strings.ToUpper(p.current().Value) == "UNIQUE" {
 		p.advance()
 		field.Constraints = append(field.Constraints, "UNIQUE")
@@ -344,8 +355,7 @@ func (p *Parser) parseCreateIndex() (*ast.QueryNode, error) {
 	return node, nil
 }
 
-// DROP INDEX [keywords] table index_name
-// Format: DROP INDEX products idx_product_name
+// DROP INDEX table index_name
 func (p *Parser) parseDropIndex() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "DROP INDEX",
@@ -353,21 +363,18 @@ func (p *Parser) parseDropIndex() (*ast.QueryNode, error) {
 	}
 	p.advance() // consume DROP INDEX
 
-	// Don't use skipKeywords() - just get table name directly
 	entity, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
 	}
 	node.Entity = entity
 
-	// Index name
 	if !p.isAtEnd() {
 		nameTok := p.current()
 		name, err := p.expectIdentifier()
 		if err != nil {
 			return nil, err
 		}
-		// Store index name in Fields
 		node.Fields = append(node.Fields, ast.FieldNode{
 			NameExpr: makeFieldExpr(name, nameTok.Position),
 			Position: nameTok.Position,
@@ -377,7 +384,7 @@ func (p *Parser) parseDropIndex() (*ast.QueryNode, error) {
 	return node, nil
 }
 
-// CREATE DATABASE [keywords] name
+// CREATE DATABASE name
 func (p *Parser) parseCreateDatabase() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "CREATE DATABASE",
@@ -385,8 +392,6 @@ func (p *Parser) parseCreateDatabase() (*ast.QueryNode, error) {
 	}
 	p.advance() // consume CREATE DATABASE
 
-	p.skipKeywords()
-
 	name, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
@@ -396,7 +401,7 @@ func (p *Parser) parseCreateDatabase() (*ast.QueryNode, error) {
 	return node, nil
 }
 
-// DROP DATABASE [keywords] name
+// DROP DATABASE name [CASCADE]
 func (p *Parser) parseDropDatabase() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "DROP DATABASE",
@@ -404,27 +409,27 @@ func (p *Parser) parseDropDatabase() (*ast.QueryNode, error) {
 	}
 	p.advance() // consume DROP DATABASE
 
-	p.skipKeywords()
-
 	name, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
 	}
 	node.DatabaseName = name
 
+	if !p.isAtEnd() && strings.ToUpper(p.current().Value) == "CASCADE" {
+		p.advance()
+		node.Cascade = true
+	}
+
 	return node, nil
 }
 
-// CREATE VIEW name AS query (100% TrueAST)
-// Format: CREATE VIEW active_users AS GET User WHERE active = true
+// CREATE VIEW name AS query
 func (p *Parser) parseCreateView() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "CREATE VIEW",
 		Position:  p.current().Position,
 	}
 	p.advance() // consume CREATE VIEW
-
-	p.skipKeywords()
 
 	name, err := p.expectIdentifier()
 	if err != nil {
@@ -436,7 +441,6 @@ func (p *Parser) parseCreateView() (*ast.QueryNode, error) {
 		return nil, err
 	}
 
-	// Parse the view query as *QueryNode (100% TrueAST - no fallback)
 	viewQuery, err := p.Parse()
 	if err != nil {
 		return nil, err
@@ -446,7 +450,7 @@ func (p *Parser) parseCreateView() (*ast.QueryNode, error) {
 	return node, nil
 }
 
-// DROP VIEW [keywords] name
+// DROP VIEW name [CASCADE]
 func (p *Parser) parseDropView() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "DROP VIEW",
@@ -454,13 +458,16 @@ func (p *Parser) parseDropView() (*ast.QueryNode, error) {
 	}
 	p.advance() // consume DROP VIEW
 
-	p.skipKeywords()
-
 	name, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
 	}
 	node.ViewName = name
+
+	if !p.isAtEnd() && strings.ToUpper(p.current().Value) == "CASCADE" {
+		p.advance()
+		node.Cascade = true
+	}
 
 	return node, nil
 }
@@ -492,16 +499,13 @@ func (p *Parser) parseRenameTable() (*ast.QueryNode, error) {
 	return node, nil
 }
 
-// ALTER VIEW name AS query (100% TrueAST)
-// Format: ALTER VIEW active_users AS GET User WHERE status = 'active'
+// ALTER VIEW name AS query
 func (p *Parser) parseAlterView() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "ALTER VIEW",
 		Position:  p.current().Position,
 	}
 	p.advance() // consume ALTER VIEW
-
-	p.skipKeywords()
 
 	name, err := p.expectIdentifier()
 	if err != nil {
@@ -513,7 +517,6 @@ func (p *Parser) parseAlterView() (*ast.QueryNode, error) {
 		return nil, err
 	}
 
-	// Parse the view query as *QueryNode (100% TrueAST - no fallback)
 	viewQuery, err := p.Parse()
 	if err != nil {
 		return nil, err
@@ -523,15 +526,13 @@ func (p *Parser) parseAlterView() (*ast.QueryNode, error) {
 	return node, nil
 }
 
-// CREATE COLLECTION [keywords] name (MongoDB)
+// CREATE COLLECTION name (MongoDB)
 func (p *Parser) parseCreateCollection() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "CREATE COLLECTION",
 		Position:  p.current().Position,
 	}
 	p.advance() // consume CREATE COLLECTION
-
-	p.skipKeywords()
 
 	name, err := p.expectIdentifier()
 	if err != nil {
@@ -542,15 +543,13 @@ func (p *Parser) parseCreateCollection() (*ast.QueryNode, error) {
 	return node, nil
 }
 
-// DROP COLLECTION [keywords] name (MongoDB)
+// DROP COLLECTION name (MongoDB)
 func (p *Parser) parseDropCollection() (*ast.QueryNode, error) {
 	node := &ast.QueryNode{
 		Operation: "DROP COLLECTION",
 		Position:  p.current().Position,
 	}
 	p.advance() // consume DROP COLLECTION
-
-	p.skipKeywords()
 
 	name, err := p.expectIdentifier()
 	if err != nil {

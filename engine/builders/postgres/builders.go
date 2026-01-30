@@ -41,10 +41,10 @@ func getFieldValue(field *pb.QueryField) string {
 }
 
 func getOrderByField(ob *pb.OrderByClause) string {
-	if ob == nil || ob.FieldExpr == nil {
-		return ""
-	}
-	return ob.FieldExpr.Value
+    if ob == nil || ob.FieldExpr == nil {
+            return ""
+     }
+    return BuildExpressionSQL(ob.FieldExpr)
 }
 
 func getJoinLeft(join *pb.JoinClause) string {
@@ -289,10 +289,18 @@ func BuildSelectSQL(query *pb.RelationalQuery) (string, []interface{}) {
 }
 
 func buildConditionSQL(cond *pb.QueryCondition) string {
-	if cond == nil {
-		return ""
-	}
-	return fmt.Sprintf("%s %s %s", getCondField(cond), cond.Operator, getCondValue(cond))
+    if cond == nil {
+        return ""
+    }
+    field := getCondField(cond)
+    value := getCondValue(cond)
+    
+    // TrueAST: check type, not string content
+    if cond.ValueExpr != nil && cond.ValueExpr.Type == "STRING" {
+        value = fmt.Sprintf("'%s'", strings.ReplaceAll(value, "'", "''"))
+    }
+    
+    return fmt.Sprintf("%s %s %s", field, cond.Operator, value)
 }
 
 func buildWindowExprSQL(expr *pb.Expression) string {
@@ -664,7 +672,7 @@ func BuildJoinSQL(query *pb.RelationalQuery) (string, []interface{}) {
 		joinType := strings.ToUpper(join.JoinType)
 		sql += fmt.Sprintf(" %s JOIN %s", joinType, join.Table)
 	if joinType != "CROSS" {
-			sql += fmt.Sprintf(" ON %s = %s", getJoinLeft(join), getJoinRight(join))
+			sql += fmt.Sprintf(" ON %s.%s = %s.%s", query.Table, getJoinLeft(join), join.Table, getJoinRight(join))
 		}
 	}
 
@@ -714,6 +722,13 @@ func BuildAggregateSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	var selectClause string
 	if aggField == "" || aggField == "*" {
 		selectClause = "SELECT COUNT(*)"
+		if len(query.GroupBy) > 0 {
+			var groupByStrs []string
+			for _, gb := range query.GroupBy {
+				groupByStrs = append(groupByStrs, gb.Value)
+			}
+			selectClause += ", " + strings.Join(groupByStrs, ", ")
+		}
 	} else {
 		if query.Distinct {
 			selectClause = fmt.Sprintf("SELECT %s(DISTINCT %s)", aggFunc, aggField)
@@ -856,38 +871,52 @@ func BuildWindowFunctionSQL(query *pb.RelationalQuery) (string, []interface{}) {
 	return sql, args
 }
 
-func BuildCTESQL(query *pb.RelationalQuery) string {
+func BuildCTESQL(query *pb.RelationalQuery) (string, []interface{}) {
 	if query.Cte == nil {
-		return ""
+		return "", nil
 	}
-	cteSQL, _ := BuildSelectSQL(query.Cte.CteQuery)
-	return fmt.Sprintf("WITH %s AS (%s) %s", query.Cte.CteName, cteSQL, query.Table)
+	cteSQL, params := BuildSelectSQL(query.Cte.CteQuery)
+	return fmt.Sprintf("WITH %s AS (%s) SELECT * FROM %s", query.Cte.CteName, cteSQL, query.Cte.CteName), params
 }
 
 func BuildSubquerySQL(query *pb.RelationalQuery) (string, []interface{}) {
-	subqueryType := strings.ToUpper(query.Subquery.SubqueryType)
-	sql := fmt.Sprintf("SELECT * FROM %s WHERE ", query.Table)
-	var args []interface{}
-
-	if len(query.Conditions) > 0 {
-		whereParts := []string{}
-		for _, cond := range query.Conditions {
-			whereParts = append(whereParts, fmt.Sprintf("%s %s $%d", cond.FieldExpr.Value, cond.Operator, len(args)+1))
-			args = append(args, cond.ValueExpr.Value)
-		}
-		sql += strings.Join(whereParts, " AND ") + " AND "
-	}
-
-	subField := query.Subquery.FieldExpr.Value
-	subquerySQL, _ := BuildSelectSQL(query.Subquery.Subquery)
-
-	if subqueryType == "IN" {
-		sql += fmt.Sprintf("%s IN (%s)", subField, subquerySQL)
-	} else if subqueryType == "EXISTS" {
-		sql += fmt.Sprintf("EXISTS (%s)", subquerySQL)
-	}
-
-	return sql, args
+        if query.Subquery == nil {
+                return "", nil
+        }
+        
+        subqueryType := strings.ToUpper(query.Subquery.SubqueryType)
+        
+        // EXISTS is a standalone existence check
+        if subqueryType == "EXISTS" {
+                subquerySQL, subArgs := BuildSelectSQL(query.Subquery.Subquery)
+                return fmt.Sprintf("SELECT EXISTS(%s)", subquerySQL), subArgs
+        }
+        
+        // IN subquery requires outer table and field
+        if query.Table == "" || query.Subquery.FieldExpr == nil {
+                return "", nil
+        }
+        
+		subField := query.Subquery.FieldExpr.Value
+        
+        subquerySQL, subArgs := BuildSelectSQL(query.Subquery.Subquery)
+        
+        sql := fmt.Sprintf("SELECT * FROM %s WHERE ", query.Table)
+        var args []interface{}
+        
+        if len(query.Conditions) > 0 {
+                whereParts := []string{}
+                for _, cond := range query.Conditions {
+                        whereParts = append(whereParts, fmt.Sprintf("%s %s $%d", cond.FieldExpr.Value, cond.Operator, len(args)+1))
+                        args = append(args, cond.ValueExpr.Value)
+                }
+                sql += strings.Join(whereParts, " AND ") + " AND "
+        }
+        
+        sql += fmt.Sprintf("%s IN (%s)", subField, subquerySQL)
+        args = append(args, subArgs...)
+        
+        return sql, args
 }
 
 func BuildLikeSQL(query *pb.RelationalQuery) (string, []interface{}) {

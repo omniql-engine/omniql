@@ -1,0 +1,145 @@
+---
+title: Insert
+description: "Create new records with CREATE"
+---
+
+Create new records using the CREATE operation.
+
+## Basic Syntax
+```sql
+:CREATE Entity WITH field:value, field:value
+```
+
+## Create Single Record
+```sql
+:CREATE User WITH name:"John", email:"john@example.com", age:30
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `INSERT INTO users (name, email, age) VALUES ('John', 'john@example.com', 30)` |
+| MySQL | `INSERT INTO users (name, email, age) VALUES ('John', 'john@example.com', 30)` |
+| MongoDB | `db.users.insertOne({ name: 'John', email: 'john@example.com', age: 30 })` |
+| Redis | `HMSET users:1 name "John" email "john@example.com" age 30` |
+
+## Data Types
+```sql
+-- String
+:CREATE User WITH name:"John"
+
+-- Number
+:CREATE User WITH age:30
+
+-- Boolean
+:CREATE User WITH active:true
+
+-- Null
+:CREATE User WITH deleted_at:null
+```
+
+## Multiple Fields
+```sql
+:CREATE Product WITH 
+  name:"Laptop",
+  price:999.99,
+  category:"Electronics",
+  in_stock:true,
+  quantity:50
+```
+
+## With Timestamps
+```sql
+:CREATE User WITH 
+  name:"John",
+  email:"john@example.com",
+  created_at:"2024-01-15T10:30:00Z"
+```
+
+## Bulk Insert
+
+Insert multiple records at once. Each record is wrapped in square brackets with `=` assignments.
+```sql
+:BULK INSERT User WITH 
+  [name = Alice, age = 25] 
+  [name = Bob, age = 30] 
+  [name = Charlie, age = 35]
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `INSERT INTO users (name, age) VALUES ('Alice', 25), ('Bob', 30), ('Charlie', 35)` |
+| MySQL | `INSERT INTO users (name, age) VALUES ('Alice', 25), ('Bob', 30), ('Charlie', 35)` |
+| MongoDB | `db.users.insertMany([{ name: 'Alice', age: 25 }, { name: 'Bob', age: 30 }, { name: 'Charlie', age: 35 }])` |
+
+## Upsert
+
+Insert or update if exists. Specify conflict field(s) with `ON`.
+```sql
+:UPSERT User WITH email:"john@example.com", name:"John Updated", login_count:1 ON email
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | `INSERT INTO users (...) ON CONFLICT (email) DO UPDATE SET name = 'John Updated', login_count = 1` |
+| MySQL | `INSERT INTO users (...) ON DUPLICATE KEY UPDATE name = 'John Updated', login_count = 1` |
+| MongoDB | `db.users.updateOne({ email: 'john@example.com' }, { $set: { ... } }, { upsert: true })` |
+
+## Upsert with Composite Key
+```sql
+:UPSERT OrderItem WITH order_id:1, product_id:5, quantity:3 ON order_id, product_id
+```
+
+## Replace
+
+Delete and insert (MySQL-specific behavior).
+```sql
+:REPLACE User WITH id:1, name:"John Replaced", email:"john.new@example.com"
+```
+
+| Database | Output |
+|----------|--------|
+| PostgreSQL | Uses UPSERT behavior |
+| MySQL | `REPLACE INTO users (id, name, email) VALUES (...)` |
+| MongoDB | `db.users.replaceOne({ _id: 1 }, { ... })` |
+
+## Complete Examples
+
+### User Registration
+```sql
+:CREATE User WITH 
+  email:"jane@example.com",
+  password_hash:"$2b$10$...",
+  name:"Jane Doe",
+  role:"user",
+  active:true,
+  created_at:"2024-01-15T10:30:00Z"
+```
+
+### E-commerce Order
+```sql
+:CREATE Order WITH 
+  user_id:42,
+  total:149.99,
+  status:"pending",
+  shipping_address:"123 Main St",
+  created_at:"2024-01-15T10:30:00Z"
+```
+
+### Bulk Product Import
+```sql
+:BULK INSERT Product WITH 
+  [sku = ABC123, name = Widget, price = 9.99, quantity = 100]
+  [sku = DEF456, name = Gadget, price = 19.99, quantity = 50]
+  [sku = GHI789, name = Gizmo, price = 29.99, quantity = 25]
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Update Data" icon="pen" href="/mutations/update">
+    Modify existing records
+  </Card>
+  <Card title="Delete Data" icon="trash" href="/mutations/delete">
+    Remove records
+  </Card>
+</CardGroup>

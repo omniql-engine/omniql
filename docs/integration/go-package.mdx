@@ -1,0 +1,326 @@
+---
+title: Go Package
+description: "Using OmniQL in your Go application"
+---
+
+# Go Package
+
+Integrate OmniQL into your Go application.
+
+## Installation
+```bash
+go get github.com/omniql-engine/omniql
+```
+
+## Quick Start
+
+OmniQL wraps your existing database connection. You bring the driver, we handle the rest.
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+    
+    _ "github.com/lib/pq"
+    "github.com/omniql-engine/omniql"
+)
+
+func main() {
+    // Your existing database connection
+    db, _ := sql.Open("postgres", "postgres://localhost/mydb")
+    
+    // Wrap it with OmniQL
+    client := oql.WrapSQL(db, "PostgreSQL")
+    
+    // Query with OmniQL syntax
+    users, _ := client.Query(":GET User WHERE age > 21")
+    
+    for _, user := range users {
+        fmt.Println(user["name"], user["age"])
+    }
+}
+```
+
+## Database Wrappers
+
+### PostgreSQL
+```go
+import (
+    "database/sql"
+    _ "github.com/lib/pq"
+    "github.com/omniql-engine/omniql"
+)
+
+db, _ := sql.Open("postgres", "postgres://user:pass@localhost/mydb")
+client := oql.WrapSQL(db, "PostgreSQL")
+```
+
+### MySQL
+```go
+import (
+    "database/sql"
+    _ "github.com/go-sql-driver/mysql"
+    "github.com/omniql-engine/omniql"
+)
+
+db, _ := sql.Open("mysql", "user:pass@tcp(localhost:3306)/mydb")
+client := oql.WrapSQL(db, "MySQL")
+```
+
+### MongoDB
+```go
+import (
+    "context"
+    "go.mongodb.org/mongo-driver/mongo"
+    "go.mongodb.org/mongo-driver/mongo/options"
+    "github.com/omniql-engine/omniql"
+)
+
+mongoClient, _ := mongo.Connect(context.Background(),
+    options.Client().ApplyURI("mongodb://localhost:27017"))
+db := mongoClient.Database("mydb")
+
+client := oql.WrapMongo(db)
+```
+
+### Redis
+```go
+import (
+    "github.com/redis/go-redis/v9"
+    "github.com/omniql-engine/omniql"
+)
+
+rdb := redis.NewClient(&redis.Options{
+    Addr: "localhost:6379",
+})
+
+client := oql.WrapRedis(rdb, "")  // Optional tenant prefix as second arg
+```
+
+## The Query Method
+```go
+func (c *Client) Query(input string) ([]map[string]any, error)
+```
+
+All queries return `[]map[string]any` regardless of database type.
+
+### SELECT (GET)
+```go
+users, err := client.Query(":GET User WHERE age > 21 ORDER BY name ASC LIMIT 10")
+
+// users = []map[string]any{
+//     {"id": 1, "name": "Alice", "age": 25},
+//     {"id": 2, "name": "Bob", "age": 30},
+// }
+
+for _, user := range users {
+    fmt.Printf("%s is %d years old\n", user["name"], user["age"])
+}
+```
+
+### INSERT (CREATE)
+```go
+result, err := client.Query(`:CREATE User WITH name:"Alice", age:28, email:"alice@example.com"`)
+
+// result = []map[string]any{
+//     {"inserted_id": 3, "rows_affected": 1},
+// }
+
+newID := result[0]["inserted_id"]
+```
+
+### UPDATE
+```go
+result, err := client.Query(`:UPDATE User SET verified:true WHERE id = 3`)
+
+// result = []map[string]any{
+//     {"rows_affected": 1},
+// }
+```
+
+### DELETE
+```go
+result, err := client.Query(`:DELETE User WHERE status = "inactive"`)
+
+// result = []map[string]any{
+//     {"rows_affected": 5},
+// }
+```
+
+### COUNT
+```go
+result, err := client.Query(`:COUNT User WHERE active = true`)
+
+// result = []map[string]any{
+//     {"count": 42},
+// }
+
+count := result[0]["count"]
+```
+
+## Multi-Tenant Support
+```go
+// Set tenant context
+client := oql.WrapSQL(db, "PostgreSQL")
+client.SetTenant("acme_corp")
+
+// Queries now include tenant context
+users, _ := client.Query(":GET User WHERE age > 21")
+// Internally adds: WHERE tenant_id = 'acme_corp' AND age > 21
+```
+
+## Polyglot Persistence
+
+Use multiple databases with the same query syntax.
+```go
+// Setup
+pgClient := oql.WrapSQL(pgDB, "PostgreSQL")
+mongoClient := oql.WrapMongo(mongoDB)
+redisClient := oql.WrapRedis(redisDB, "")
+
+// Same query, any backend
+query := ":GET User WHERE status = \"active\" LIMIT 10"
+
+pgUsers, _ := pgClient.Query(query)       // PostgreSQL
+mongoUsers, _ := mongoClient.Query(query) // MongoDB
+redisUsers, _ := redisClient.Query(query) // Redis
+
+// All return []map[string]any
+```
+
+## Error Handling
+```go
+users, err := client.Query(":GET User WHERE age > 21")
+if err != nil {
+    log.Printf("Query failed: %v", err)
+    return
+}
+
+fmt.Printf("Found %d users\n", len(users))
+```
+
+## Complete Example
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+    "log"
+
+    _ "github.com/lib/pq"
+    "github.com/omniql-engine/omniql"
+)
+
+func main() {
+    // Connect to database
+    db, err := sql.Open("postgres", "postgres://localhost/myapp?sslmode=disable")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    // Wrap with OmniQL
+    client := oql.WrapSQL(db, "PostgreSQL")
+
+    // Create a user
+    result, err := client.Query(`:CREATE User WITH name:"John", age:25, email:"john@example.com"`)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Created user with ID: %v\n", result[0]["inserted_id"])
+
+    // Query users
+    users, err := client.Query(":GET User WHERE age > 21 ORDER BY name ASC")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Found %d users:\n", len(users))
+    for _, user := range users {
+        fmt.Printf("  - %s (%v years old)\n", user["name"], user["age"])
+    }
+
+    // Count users
+    countResult, _ := client.Query(":COUNT User WHERE active = true")
+    fmt.Printf("Active users: %v\n", countResult[0]["count"])
+
+    // Update user
+    client.Query(`:UPDATE User SET verified:true WHERE email = "john@example.com"`)
+
+    // Delete inactive users
+    deleteResult, _ := client.Query(`:DELETE User WHERE active = false`)
+    fmt.Printf("Deleted %v inactive users\n", deleteResult[0]["rows_affected"])
+}
+```
+
+## Low-Level API
+
+For advanced use cases, you can access the parse and translate steps directly.
+
+### Parse Only
+```go
+import "github.com/omniql-engine/omniql"
+
+query, isOQL, err := oql.Parse(":GET User WHERE age > 21")
+// query = *models.Query (AST)
+// isOQL = true
+// err = nil
+```
+
+### Translate Only
+```go
+import "github.com/omniql-engine/omniql/engine/translator"
+
+// Parse first
+query, _, _ := oql.Parse(":GET User WHERE age > 21")
+
+// Then translate to any database
+result, _ := translator.Translate(query, "PostgreSQL", "tenant_1")
+
+// Access native query
+sql := result.GetRelational().Sql
+// → SELECT * FROM "users" WHERE "age" > 21
+```
+
+### Database-Specific Accessors
+
+| Database | Result Type | Accessor |
+|----------|-------------|----------|
+| PostgreSQL | `RelationalQuery` | `result.GetRelational().Sql` |
+| MySQL | `RelationalQuery` | `result.GetRelational().Sql` |
+| MongoDB | `DocumentQuery` | `result.GetDocument().Query` |
+| Redis | `KeyValueQuery` | `result.GetKeyValue().CommandString` |
+
+## Package Structure
+```
+github.com/omniql-engine/omniql/
+├── oql.go              # Parse(), WrapSQL(), WrapMongo(), WrapRedis()
+├── client.go              # Client struct and Query() method
+├── engine/
+│   ├── parser/            # Query parser
+│   ├── lexer/             # Tokenizer
+│   ├── models/            # Query AST
+│   ├── translator/        # Database translators
+│   ├── builders/          # Query builders (including Redis filters)
+│   └── validator/         # Query validators
+└── mapping/               # Type and operator mappings
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    5-minute getting started
+  </Card>
+  <Card title="Query Basics" icon="magnifying-glass" href="/queries/basics">
+    Learn GET operations
+  </Card>
+  <Card title="Redis" icon="bolt" href="/databases/redis">
+    Redis-specific features
+  </Card>
+  <Card title="Mutations" icon="pen" href="/mutations/insert">
+    Insert and Update data
+  </Card>
+</CardGroup>

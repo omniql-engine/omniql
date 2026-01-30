@@ -509,6 +509,7 @@ var OperationMap = map[string]map[string]string{
 		"CREATE COLLECTION": "createCollection",
 		"ALTER TABLE":     "modifyCollection",
 		"DROP TABLE":      "dropCollection",
+		"DROP COLLECTION": "dropCollection",
 		"TRUNCATE TABLE":  "deleteMany",
 		"CREATE INDEX":    "create_index",
 		"DROP INDEX":      "drop_index",
@@ -709,6 +710,32 @@ var TableNamingRules = map[string]string{
 		"CREATE USER": "none",
 		"DROP USER":   "none",
 		"ALTER USER":  "none",
+
+		// ========== PG SPECIFIC DDL - table references use plural ==========
+		"CREATE TRIGGER":   "plural",  // ON {table}
+		"DROP TRIGGER":     "plural",  // ON {table}
+		"CREATE POLICY":    "plural",  // ON {table}
+		"DROP POLICY":      "plural",  // ON {table}
+		"CREATE RULE":      "plural",  // ON {table}
+		"DROP RULE":        "plural",  // ON {table}
+		"COMMENT ON":       "plural",  // TABLE/COLUMN references
+
+		// ========== PG SPECIFIC DDL - standalone objects use exact ==========
+		"CREATE SEQUENCE":  "exact",
+		"ALTER SEQUENCE":   "exact",
+		"DROP SEQUENCE":    "exact",
+		"CREATE EXTENSION": "exact",
+		"DROP EXTENSION":   "exact",
+		"CREATE SCHEMA":    "exact",
+		"DROP SCHEMA":      "exact",
+		"CREATE TYPE":      "exact",
+		"ALTER TYPE":       "exact",
+		"DROP TYPE":        "exact",
+		"CREATE DOMAIN":    "exact",
+		"DROP DOMAIN":      "exact",
+		"CREATE FUNCTION":  "exact",
+		"ALTER FUNCTION":   "exact",
+		"DROP FUNCTION":    "exact",
 }
 
 // OperationMapping for documentation

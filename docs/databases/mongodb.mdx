@@ -1,0 +1,438 @@
+---
+title: MongoDB
+description: "Using OmniQL with MongoDB"
+---
+
+MongoDB is a document database that stores data in flexible, JSON-like documents.
+
+## Quick Start
+```go
+import (
+    "context"
+    
+    "go.mongodb.org/mongo-driver/mongo"
+    "go.mongodb.org/mongo-driver/mongo/options"
+    "github.com/omniql-engine/omniql"
+)
+
+// Your MongoDB connection
+mongoClient, _ := mongo.Connect(context.Background(),
+    options.Client().ApplyURI("mongodb://localhost:27017"))
+db := mongoClient.Database("mydb")
+
+// Wrap with OmniQL
+client := oql.WrapMongo(db)
+
+// Query with OmniQL syntax
+users, _ := client.Query(":GET User WHERE age > 21")
+```
+
+## Type Mappings
+
+| OmniQL | MongoDB |
+|--------|---------|
+| `AUTO` | `ObjectId` |
+| `BIGAUTO` | `ObjectId` |
+| `STRING` | `String` |
+| `TEXT` | `String` |
+| `CHAR` | `String` |
+| `INT` | `Int32` |
+| `BIGINT` | `Int64` |
+| `SMALLINT` | `Int32` |
+| `DECIMAL` | `Decimal128` |
+| `NUMERIC` | `Decimal128` |
+| `FLOAT` | `Double` |
+| `REAL` | `Double` |
+| `BOOLEAN` | `Boolean` |
+| `BOOL` | `Boolean` |
+| `TIMESTAMP` | `Date` |
+| `DATETIME` | `Date` |
+| `DATE` | `Date` |
+| `TIME` | `String` |
+| `JSON` | `Object` |
+| `JSONB` | `Object` |
+| `UUID` | `UUID` |
+| `BINARY` | `BinData` |
+| `BLOB` | `BinData` |
+
+## Entity Naming
+
+OmniQL entities become collection names (lowercase):
+
+| OmniQL | MongoDB |
+|--------|---------|
+| `User` | `users` |
+| `Order` | `orders` |
+| `OrderItem` | `orderitems` |
+
+## Translation Examples
+
+### CRUD Operations
+
+**GET (find)**
+```sql
+:GET User WHERE id = 1
+```
+```javascript
+db.users.find({ id: 1 })
+```
+```sql
+:GET User WHERE age > 21 AND status = "active"
+```
+```javascript
+db.users.find({ age: { $gt: 21 }, status: 'active' })
+```
+```sql
+:GET id, name, email FROM User WHERE active = true
+```
+```javascript
+db.users.find({ active: true }, { id: 1, name: 1, email: 1 })
+```
+
+**CREATE (insertOne)**
+```sql
+:CREATE User WITH name = "John", email = "john@example.com"
+```
+```javascript
+db.users.insertOne({ name: 'John', email: 'john@example.com' })
+```
+
+**BULK INSERT (insertMany)**
+```sql
+:BULK INSERT User WITH [name = "Alice", age = 28] [name = "Bob", age = 32]
+```
+```javascript
+db.users.insertMany([
+  { name: 'Alice', age: 28 },
+  { name: 'Bob', age: 32 }
+])
+```
+
+**UPDATE (updateOne)**
+```sql
+:UPDATE User SET status = "active" WHERE id = 1
+```
+```javascript
+db.users.updateOne({ id: 1 }, { $set: { status: 'active' } })
+```
+
+**Arithmetic in UPDATE**
+```sql
+:UPDATE User SET balance = balance + 100 WHERE id = 1
+```
+```javascript
+db.users.updateOne({ id: 1 }, { $inc: { balance: 100 } })
+```
+```sql
+:UPDATE Product SET price = price * 0.9 WHERE category = "sale"
+```
+```javascript
+db.products.updateOne({ category: 'sale' }, { $mul: { price: 0.9 } })
+```
+
+**DELETE (deleteOne)**
+```sql
+:DELETE User WHERE id = 1
+```
+```javascript
+db.users.deleteOne({ id: 1 })
+```
+
+**UPSERT**
+```sql
+:UPSERT User WITH email = "john@example.com", name = "John" ON email
+```
+```javascript
+db.users.updateOne(
+  { email: 'john@example.com' },
+  { $set: { email: 'john@example.com', name: 'John' } },
+  { upsert: true }
+)
+```
+
+**REPLACE (replaceOne)**
+```sql
+:REPLACE User WITH id = 1, name = "John", email = "john@example.com"
+```
+```javascript
+db.users.replaceOne({ id: 1 }, { name: 'John', email: 'john@example.com' })
+```
+
+### Filtering (Operators)
+
+| OmniQL | MongoDB |
+|--------|---------|
+| `=` | `$eq` |
+| `!=` | `$ne` |
+| `>` | `$gt` |
+| `>=` | `$gte` |
+| `<` | `$lt` |
+| `<=` | `$lte` |
+| `IN` | `$in` |
+| `NOT IN` | `$nin` |
+| `LIKE` | `$regex` |
+| `IS NULL` | `$eq: null` |
+| `IS NOT NULL` | `$ne: null` |
+| `AND` | implicit / `$and` |
+| `OR` | `$or` |
+
+**Examples:**
+```sql
+:GET User WHERE role IN ("admin", "moderator")
+```
+```javascript
+db.users.find({ role: { $in: ['admin', 'moderator'] } })
+```
+```sql
+:GET User WHERE age BETWEEN 18 AND 65
+```
+```javascript
+db.users.find({ age: { $gte: 18, $lte: 65 } })
+```
+```sql
+:GET User WHERE name LIKE "John%"
+```
+```javascript
+db.users.find({ name: { $regex: /^John/, $options: 'i' } })
+```
+```sql
+:GET User WHERE role = "admin" OR role = "moderator"
+```
+```javascript
+db.users.find({ $or: [{ role: 'admin' }, { role: 'moderator' }] })
+```
+
+### Pagination
+```sql
+:GET User ORDER BY created_at DESC LIMIT 10 OFFSET 20
+```
+```javascript
+db.users.find({}).sort({ created_at: -1 }).skip(20).limit(10)
+```
+
+### Aggregation
+
+**COUNT**
+```sql
+:COUNT * FROM User WHERE active = true
+```
+```javascript
+db.users.aggregate([
+  { $match: { active: true } },
+  { $group: { _id: null, result: { $sum: 1 } } }
+])
+```
+
+**GROUP BY**
+```sql
+:COUNT * FROM User GROUP BY status
+```
+```javascript
+db.users.aggregate([
+  { $group: { _id: '$status', result: { $sum: 1 } } }
+])
+```
+
+**SUM, AVG, MIN, MAX**
+```sql
+:SUM total FROM Order WHERE status = "completed"
+```
+```javascript
+db.orders.aggregate([
+  { $match: { status: 'completed' } },
+  { $group: { _id: null, result: { $sum: '$total' } } }
+])
+```
+
+**HAVING**
+```sql
+:COUNT * FROM User GROUP BY status HAVING COUNT(*) > 10
+```
+```javascript
+db.users.aggregate([
+  { $group: { _id: '$status', result: { $sum: 1 } } },
+  { $match: { result: { $gt: 10 } } }
+])
+```
+
+### Joins ($lookup)
+
+OmniQL joins translate to MongoDB's `$lookup` aggregation:
+```sql
+:INNER JOIN Order User ON Order.user_id = User.id
+```
+```javascript
+db.orders.aggregate([
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'user_id',
+      foreignField: '_id',
+      as: 'users_joined'
+    }
+  },
+  { $unwind: '$users_joined' }
+])
+```
+```sql
+:LEFT JOIN Order User ON Order.user_id = User.id
+```
+```javascript
+db.orders.aggregate([
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'user_id',
+      foreignField: '_id',
+      as: 'users_joined'
+    }
+  },
+  { $unwind: { path: '$users_joined', preserveNullAndEmptyArrays: true } }
+])
+```
+
+### Window Functions (MongoDB 5.0+)
+```sql
+:ROW NUMBER OVER (PARTITION BY department ORDER BY salary) FROM Employee
+```
+```javascript
+db.employees.aggregate([
+  {
+    $setWindowFields: {
+      partitionBy: '$department',
+      sortBy: { salary: 1 },
+      output: {
+        rowNumber: { $documentNumber: {} }
+      }
+    }
+  }
+])
+```
+
+**Supported window functions:**
+- ROW NUMBER → `$documentNumber`
+- RANK → `$rank`
+- DENSE RANK → `$denseRank`
+- LAG/LEAD → `$shift`
+
+### Set Operations (MongoDB 4.4+)
+```sql
+:UNION (GET User WHERE age > 50) (GET User WHERE role = "premium")
+```
+```javascript
+db.users.aggregate([
+  { $match: { age: { $gt: 50 } } },
+  { $unionWith: { coll: 'users', pipeline: [{ $match: { role: 'premium' } }] } }
+])
+```
+
+### CASE Expressions
+```sql
+:GET User WITH CASE WHEN age > 25 THEN "adult" ELSE "minor" END AS category
+```
+```javascript
+db.users.aggregate([
+  {
+    $project: {
+      category: {
+        $switch: {
+          branches: [
+            { case: { $gt: ['$age', 25] }, then: 'adult' }
+          ],
+          default: 'minor'
+        }
+      }
+    }
+  }
+])
+```
+
+### Transactions (Replica Set Required)
+```sql
+:BEGIN
+:UPDATE Account SET balance = balance - 100 WHERE id = 1
+:UPDATE Account SET balance = balance + 100 WHERE id = 2
+:COMMIT
+```
+```javascript
+session.startTransaction();
+db.accounts.updateOne({ id: 1 }, { $inc: { balance: -100 } });
+db.accounts.updateOne({ id: 2 }, { $inc: { balance: 100 } });
+session.commitTransaction();
+```
+
+### Permissions
+
+**CREATE USER:**
+```sql
+:CREATE USER analyst WITH PASSWORD secret123
+```
+```javascript
+db.runCommand({ createUser: 'analyst', pwd: 'secret123', roles: [] })
+```
+
+**CREATE ROLE:**
+```sql
+:CREATE ROLE readonly
+```
+```javascript
+db.runCommand({ createRole: 'readonly', privileges: [], roles: [] })
+```
+
+**GRANT ROLE:**
+```sql
+:ASSIGN ROLE readonly TO analyst
+```
+```javascript
+db.runCommand({ grantRolesToUser: 'analyst', roles: ['readonly'] })
+```
+
+## Supported Operations
+
+| Category | Operations | Support |
+|----------|------------|---------|
+| CRUD | GET, CREATE, UPDATE, DELETE, UPSERT, BULK INSERT, REPLACE | Full |
+| Filtering | All operators (=, !=, IN, BETWEEN, LIKE, IS NULL, etc.) | Full |
+| Aggregation | COUNT, SUM, AVG, MIN, MAX | Full |
+| Grouping | GROUP BY, HAVING | Full |
+| Sorting | ORDER BY, LIMIT, OFFSET | Full |
+| Joins | INNER, LEFT, RIGHT, FULL | Via $lookup |
+| Window Functions | ROW NUMBER, RANK, DENSE RANK, LAG, LEAD | MongoDB 5.0+ |
+| Set Operations | UNION, UNION ALL | MongoDB 4.4+ |
+| Expressions | Arithmetic (+, -, *, /, %), CASE WHEN | Full |
+| Functions | UPPER, LOWER, CONCAT, LENGTH, ABS, ROUND | Full |
+| Transactions | BEGIN, COMMIT, ROLLBACK | Replica set only |
+| DDL | CREATE/DROP COLLECTION, RENAME, CREATE VIEW | Full |
+| DCL | CREATE/DROP USER, CREATE/DROP ROLE, GRANT, REVOKE | Full |
+
+## Limitations
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| SAVEPOINT | Not supported | MongoDB has no savepoint concept |
+| ROLLBACK TO | Not supported | No partial rollback |
+| RELEASE SAVEPOINT | Not supported | No savepoints |
+| INTERSECT | Not supported | Use aggregation workarounds |
+| EXCEPT | Not supported | Use aggregation workarounds |
+| CTEs | Not supported | Use aggregation pipelines instead |
+| Single-node transactions | Not supported | Requires replica set |
+
+## Version Requirements
+
+| Feature | Minimum MongoDB Version |
+|---------|------------------------|
+| Basic CRUD | 3.6+ |
+| Transactions | 4.0+ (replica set) |
+| $unionWith | 4.4+ |
+| $setWindowFields | 5.0+ |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Redis" icon="bolt" href="/databases/redis">
+    Redis specifics
+  </Card>
+  <Card title="Data Types" icon="shapes" href="/reference/data-types">
+    Type mappings
+  </Card>
+</CardGroup>

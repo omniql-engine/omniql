@@ -48,27 +48,21 @@ func (p *Parser) parseDCL(op string) (*ast.QueryNode, error) {
 
 // GRANT|REVOKE permissions ON entity TO|FROM target
 func (p *Parser) parseGrantRevoke(node *ast.QueryNode, op string) (*ast.QueryNode, error) {
-	// Permissions list - parse until ON keyword
 	var perms []string
 	for !p.isAtEnd() {
 		curUpper := strings.ToUpper(p.current().Value)
-		// Stop at ON keyword
 		if curUpper == "ON" {
 			break
 		}
-		// Get permission name (can be operation keywords like UPDATE, DELETE)
 		perms = append(perms, p.advance().Value)
-		// Skip comma if present
 		p.match(",")
 	}
 	node.Permission.Permissions = perms
 
-	// ON
 	if err := p.expect("ON"); err != nil {
 		return nil, err
 	}
 
-// Handle * (all) or identifier
 	var entity string
 	if p.current().Value == "*" {
 		entity = "*"
@@ -82,7 +76,6 @@ func (p *Parser) parseGrantRevoke(node *ast.QueryNode, op string) (*ast.QueryNod
 	}
 	node.Entity = entity
 
-	// TO (GRANT) or FROM (REVOKE)
 	if op == "GRANT" {
 		if err := p.expect("TO"); err != nil {
 			return nil, err
@@ -102,9 +95,8 @@ func (p *Parser) parseGrantRevoke(node *ast.QueryNode, op string) (*ast.QueryNod
 	return node, nil
 }
 
+// CREATE USER name [WITH PASSWORD password]
 func (p *Parser) parseCreateUser(node *ast.QueryNode) (*ast.QueryNode, error) {
-	p.skipKeywords()
-
 	name, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
@@ -121,9 +113,8 @@ func (p *Parser) parseCreateUser(node *ast.QueryNode) (*ast.QueryNode, error) {
 	return node, nil
 }
 
+// DROP USER name
 func (p *Parser) parseDropUser(node *ast.QueryNode) (*ast.QueryNode, error) {
-	p.skipKeywords()
-
 	name, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
@@ -133,16 +124,14 @@ func (p *Parser) parseDropUser(node *ast.QueryNode) (*ast.QueryNode, error) {
 	return node, nil
 }
 
+// ALTER USER name [WITH PASSWORD password]
 func (p *Parser) parseAlterUser(node *ast.QueryNode) (*ast.QueryNode, error) {
-	p.skipKeywords()
-
 	name, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
 	}
 	node.Permission.UserName = name
 
-	// WITH PASSWORD
 	if p.match("WITH") {
 		if p.match("PASSWORD") {
 			tok := p.advance()
@@ -153,9 +142,8 @@ func (p *Parser) parseAlterUser(node *ast.QueryNode) (*ast.QueryNode, error) {
 	return node, nil
 }
 
+// CREATE ROLE name
 func (p *Parser) parseCreateRole(node *ast.QueryNode) (*ast.QueryNode, error) {
-	p.skipKeywords()
-
 	name, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
@@ -165,9 +153,8 @@ func (p *Parser) parseCreateRole(node *ast.QueryNode) (*ast.QueryNode, error) {
 	return node, nil
 }
 
+// DROP ROLE name
 func (p *Parser) parseDropRole(node *ast.QueryNode) (*ast.QueryNode, error) {
-	p.skipKeywords()
-
 	name, err := p.expectIdentifier()
 	if err != nil {
 		return nil, err
@@ -177,6 +164,7 @@ func (p *Parser) parseDropRole(node *ast.QueryNode) (*ast.QueryNode, error) {
 	return node, nil
 }
 
+// ASSIGN ROLE role TO user
 func (p *Parser) parseAssignRole(node *ast.QueryNode) (*ast.QueryNode, error) {
 	role, err := p.expectIdentifier()
 	if err != nil {
@@ -197,6 +185,7 @@ func (p *Parser) parseAssignRole(node *ast.QueryNode) (*ast.QueryNode, error) {
 	return node, nil
 }
 
+// REVOKE ROLE role FROM user
 func (p *Parser) parseRevokeRole(node *ast.QueryNode) (*ast.QueryNode, error) {
 	role, err := p.expectIdentifier()
 	if err != nil {

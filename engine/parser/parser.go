@@ -83,8 +83,7 @@ func (p *Parser) Parse() (*ast.QueryNode, error) {
         return nil, err
     }
     
-    // NEW: Ensure all tokens were consumed
-    // If there are leftover tokens, it means something wasn't recognized
+    // Ensure all tokens were consumed
     if !p.isAtEnd() {
         tok := p.current()
         suggestion := lexer.SuggestSimilar(tok.Value)
@@ -95,6 +94,36 @@ func (p *Parser) Parse() (*ast.QueryNode, error) {
     }
     
     return node, nil
+}
+
+// parseNested parses a nested query without checking for leftover tokens
+// Used by set operations (UNION), CTE, SUBQUERY, EXISTS where ) terminates
+func (p *Parser) parseNested() (*ast.QueryNode, error) {
+    if len(p.tokens) == 0 || p.isAtEnd() {
+        return nil, p.error("empty nested query")
+    }
+
+    op := strings.ToUpper(p.current().Value)
+
+    group, exists := mapping.OperationGroups[op]
+    if !exists {
+        return nil, p.errorWithSuggestion(op)
+    }
+
+    switch group {
+    case "CRUD":
+        return p.parseCRUD(op)
+    case "DDL":
+        return p.parseDDL(op)
+    case "DQL":
+        return p.parseDQL(op)
+    case "TCL":
+        return p.parseTCL(op)
+    case "DCL":
+        return p.parseDCL(op)
+    default:
+        return nil, p.error(fmt.Sprintf("unknown group '%s'", group))
+    }
 }
 
 // =============================================================================
@@ -161,24 +190,6 @@ func (p *Parser) expectIdentifier() (string, error) {
 	}
 	p.advance()
 	return tok.Value, nil
-}
-
-// skipToIdentifier advances until current token is an identifier
-// followed by a clause keyword (WITH, ON, etc.) or EOF
-// This is how grammar handles optional modifiers without special cases
-func (p *Parser) skipKeywords() {
-	for !p.isAtEnd() {
-		cur := p.current()
-		next := p.peek(1)
-
-		// If current is identifier and next is clause or EOF, we found our target
-		if cur.Type == lexer.TOKEN_IDENTIFIER {
-			if next.Type == lexer.TOKEN_CLAUSE || next.Type == lexer.TOKEN_EOF {
-				return
-			}
-		}
-		p.advance()
-	}
 }
 
 // =============================================================================
@@ -372,6 +383,48 @@ func nodeToQuery(node *ast.QueryNode) *models.Query {
 	if node.ViewQuery != nil {
 		q.ViewQuery = nodeToQuery(node.ViewQuery)
 	}
+
+	// CTE (100% TrueAST) - convert ViewName/ViewQuery to CTE struct for CTE operations
+	if node.Operation == "CTE" && node.ViewName != "" && node.ViewQuery != nil {
+		q.CTE = &models.CTE{
+			Name:  node.ViewName,
+			Query: nodeToQuery(node.ViewQuery),
+		}
+	}
+
+	// SUBQUERY (100% TrueAST) - convert to Subquery struct
+	if node.Operation == "SUBQUERY" && node.ViewQuery != nil {
+                var fieldExpr *models.Expression
+                if len(node.Columns) > 0 {
+                        fieldExpr = astExprToModelExpr(node.Columns[0])
+                }
+                innerQuery := nodeToQuery(node.ViewQuery)
+                
+				// TrueAST: SUBQUERY IN must return only the field column (not *)
+                if fieldExpr != nil {
+                        innerQuery.Columns = []*models.Expression{fieldExpr}
+                }
+                
+                q.Subquery = &models.Subquery{
+                        Type:      "IN",
+                        FieldExpr: fieldExpr,
+                        Query:     innerQuery,
+                }
+		// Use inner query's entity as outer entity for standalone SUBQUERY
+		if node.ViewQuery.Entity != "" && q.Entity == "" {
+			q.Entity = node.ViewQuery.Entity
+		}
+	}
+
+	// EXISTS (100% TrueAST) - convert to Subquery struct with Type=EXISTS
+	if node.Operation == "EXISTS" && node.ViewQuery != nil {
+		q.Subquery = &models.Subquery{
+			Type:  "EXISTS",
+			Query: nodeToQuery(node.ViewQuery),
+		}
+	}
+
+	// Limit/Offset
 
 	// Limit/Offset
 	if node.Limit != nil {
