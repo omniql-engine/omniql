@@ -52,20 +52,22 @@ The same query works on any supported database:
 | Redis      | `WrapRedis()`  | Full support  |
 
 ## How It Works
-```
-┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
-│  Your Query     │ ───▶ │    OmniQL       │ ───▶ │  Native Query   │
-│                 │      │                 │      │                 │
-│ :GET User       │      │ 1. Parse        │      │ SELECT * FROM   │
-│ WHERE age > 21  │      │ 2. Translate    │      │ "users" WHERE   │
-│                 │      │ 3. Execute      │      │ "age" > 21      │
-└─────────────────┘      └─────────────────┘      └─────────────────┘
-                                │
-                                ▼
-                         ┌─────────────────┐
-                         │  []map[string]  │
-                         │  any (results)  │
-                         └─────────────────┘
+```mermaid
+flowchart LR
+    subgraph Input
+        A[":GET User<br/>WHERE age > 21"]
+    end
+    
+    subgraph OmniQL
+        B["1. Parse<br/>2. Translate<br/>3. Execute"]
+    end
+    
+    subgraph Output
+        C["SELECT * FROM<br/>\"users\" WHERE<br/>\"age\" > 21"]
+    end
+    
+    A --> B --> C
+    B --> D[("[]map[string]any<br/>results")]
 ```
 
 1. **Wrap:** Connect OmniQL to your existing database connection.
