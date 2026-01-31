@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
+  <style>
+    .box { fill: #1a1a2e; stroke: #00d9a5; stroke-width: 2; rx: 8; }
+    .text { fill: #ffffff; font-family: monospace; font-size: 14px; }
+    .label { fill: #00d9a5; font-family: sans-serif; font-size: 12px; font-weight: bold; }
+    .arrow { stroke: #00d9a5; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#00d9a5"/>
+    </marker>
+  </defs>
+  
+  <!-- Input Box -->
+  <rect class="box" x="20" y="40" width="180" height="120"/>
+  <text class="label" x="70" y="30">Your Query</text>
+  <text class="text" x="40" y="80">:GET User</text>
+  <text class="text" x="40" y="100">WHERE age > 21</text>
+  
+  <!-- Arrow 1 -->
+  <path class="arrow" d="M 210 100 L 270 100"/>
+  
+  <!-- OmniQL Box -->
+  <rect class="box" x="280" y="40" width="180" height="120"/>
+  <text class="label" x="340" y="30">OmniQL</text>
+  <text class="text" x="300" y="80">1. Parse</text>
+  <text class="text" x="300" y="100">2. Translate</text>
+  <text class="text" x="300" y="120">3. Execute</text>
+  
+  <!-- Arrow 2 -->
+  <path class="arrow" d="M 470 100 L 530 100"/>
+  
+  <!-- Output Box -->
+  <rect class="box" x="540" y="40" width="220" height="120"/>
+  <text class="label" x="600" y="30">Native Query</text>
+  <text class="text" x="560" y="80">SELECT * FROM</text>
+  <text class="text" x="560" y="100">"users" WHERE</text>
+  <text class="text" x="560" y="120">"age" > 21</text>
+</svg>
