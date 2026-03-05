@@ -899,13 +899,26 @@ func BuildMongoDBJoinPipeline(query *pb.DocumentQuery) []bson.M {
 	pipeline := []bson.M{}
 
 	for _, join := range query.Joins {
-		lookupStage := bson.M{
-			"$lookup": bson.M{
-				"from":         join.Table,
-				"localField":   ExtractFieldName(join.LeftExpr.Value),
-				"foreignField": ExtractFieldName(join.RightExpr.Value),
-				"as":           join.Table + "_joined",
-			},
+		var lookupStage bson.M
+		
+		// CROSS JOIN: no ON clause - use pipeline syntax for Cartesian product
+		if join.LeftExpr == nil || join.RightExpr == nil {
+			lookupStage = bson.M{
+				"$lookup": bson.M{
+					"from":     join.Table,
+					"pipeline": bson.A{},
+					"as":       join.Table + "_joined",
+				},
+			}
+		} else {
+			lookupStage = bson.M{
+				"$lookup": bson.M{
+					"from":         join.Table,
+					"localField":   ExtractFieldName(join.LeftExpr.Value),
+					"foreignField": ExtractFieldName(join.RightExpr.Value),
+					"as":           join.Table + "_joined",
+				},
+			}
 		}
 		pipeline = append(pipeline, lookupStage)
 

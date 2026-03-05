@@ -56,6 +56,12 @@ func (p *Parser) parseAggregate(op string) (*ast.QueryNode, error) {
 	}
 	p.advance() // consume aggregate function
 
+	// Check for DISTINCT modifier
+	if strings.ToUpper(p.current().Value) == "DISTINCT" {
+		p.advance()
+		node.Distinct = true
+	}
+
 	// Optional field (COUNT can be COUNT *)
 	if p.current().Value != "FROM" && p.current().Value != "*" {
 		pos := p.current().Position

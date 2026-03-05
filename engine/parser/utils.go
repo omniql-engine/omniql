@@ -92,11 +92,20 @@ func (p *Parser) parseFieldAssignments() ([]ast.FieldNode, error) {
 		// Check if it's "field:value" combined or separate tokens
 		if strings.Contains(tok.Value, ":") {
 			parts := strings.SplitN(tok.Value, ":", 2)
-			fields = append(fields, ast.FieldNode{
-				NameExpr:  makeFieldExpr(parts[0], tok.Position),
-				ValueExpr: makeLiteralExpr(parts[1], tok.Position),
-				Position:  tok.Position,
-			})
+			if parts[1] == "" {
+				// "name:" — value is next token (string, number, bool, expression)
+				field, err := p.parseFieldValue(parts[0], tok.Position)
+				if err != nil {
+					return nil, err
+				}
+				fields = append(fields, field)
+			} else {
+				fields = append(fields, ast.FieldNode{
+					NameExpr:  makeFieldExpr(parts[0], tok.Position),
+					ValueExpr: makeLiteralExpr(parts[1], tok.Position),
+					Position:  tok.Position,
+				})
+			}
 		} else {
 			// Separate tokens: field : value or field = value
 			name := tok.Value
